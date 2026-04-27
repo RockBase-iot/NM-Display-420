@@ -84,10 +84,11 @@ static void _t5_es8311_init_record() {
     _t5_es8311_write(0x1C, 0x6A);
     _t5_es8311_write(0x44, 0x58);   // ADC -> I2S SDP
 
-    // DMIC ENABLE: reg 0x14 bit[6]=DMICON, bit[3:0]=PGA gain (kept at 0xA = 30dB)
-    _t5_es8311_write(0x14, 0x5A);   // 0x5A = DMIC on + 30dB analog gain bits
+    // DMIC ENABLE: reg 0x14 — bit[7]=DMIC_ON, bit[3:0]=PGA_GAIN (each step 3dB).
+    // 0x8A = DMIC enabled + 30 dB PGA. (0x5A had bit7=0 → analog mic path.)
+    _t5_es8311_write(0x14, 0x8A);
 
-    _t5_es8311_write(0x17, 0xBF);   // ADC volume ~ max
+    _t5_es8311_write(0x17, 0xFF);   // ADC digital volume max (~+31.5dB)
     _t5_es8311_write(0x0E, 0x02);   // ADC analog power
     _t5_es8311_write(0x12, 0x00);   // power on (DAC also; harmless)
     _t5_es8311_write(0x0D, 0x01);
