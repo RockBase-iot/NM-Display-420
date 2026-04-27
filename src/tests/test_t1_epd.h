@@ -104,7 +104,7 @@ inline TestResult runTestT1(Display& disp, TestRunner& runner) {
     if (!runner.waitForVerdict()) {
         Serial.println("[T1] <<< verdict received: FAIL");
         Serial.println("[T1] FAIL - WHITE fill rejected by operator");
-        static const char* failMsg[] = { "WHITE fill FAILED", "Press AP to continue" };
+        static const char* failMsg[] = { "WHITE fill FAILED", "Press AP button to continue" };
         disp.showTestScreen(1, "EPD Display Test", failMsg, 2, "FAIL", "AP=Next test");
         Serial.println("[T1] >>> waiting for AP to continue");
         runner.waitForAP();
@@ -124,7 +124,7 @@ inline TestResult runTestT1(Display& disp, TestRunner& runner) {
     if (!runner.waitForVerdict()) {
         Serial.println("[T1] <<< verdict received: FAIL");
         Serial.println("[T1] FAIL - BLACK fill rejected by operator");
-        static const char* failMsg[] = { "BLACK fill FAILED", "Press AP to continue" };
+        static const char* failMsg[] = { "BLACK fill FAILED", "Press AP button to continue" };
         disp.showTestScreen(1, "EPD Display Test", failMsg, 2, "FAIL", "AP=Next test");
         Serial.println("[T1] >>> waiting for AP to continue");
         runner.waitForAP();
@@ -144,7 +144,7 @@ inline TestResult runTestT1(Display& disp, TestRunner& runner) {
     if (!runner.waitForVerdict()) {
         Serial.println("[T1] <<< verdict received: FAIL");
         Serial.println("[T1] FAIL - RED fill rejected by operator");
-        static const char* failMsg[] = { "RED fill FAILED", "Press AP to continue" };
+        static const char* failMsg[] = { "RED fill FAILED", "Press AP button to continue" };
         disp.showTestScreen(1, "EPD Display Test", failMsg, 2, "FAIL", "AP=Next test");
         Serial.println("[T1] >>> waiting for AP to continue");
         runner.waitForAP();

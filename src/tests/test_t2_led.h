@@ -74,7 +74,7 @@ inline TestResult runTestT2(Display& disp, TestRunner& runner) {
         return TestResult::PASS;
     } else {
         Serial.println("[T2] FAIL - operator rejected LED colors");
-        static const char* failLines[] = { "LED color check failed.", "Press AP to continue." };
+        static const char* failLines[] = { "LED color check failed.", "Press AP button to continue." };
         disp.showTestScreen(2, "WS2812 RGB LED Test",
                             failLines, 2, "FAIL", "AP=Next");
         runner.waitForAP();

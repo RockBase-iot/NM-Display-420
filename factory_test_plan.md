@@ -61,28 +61,28 @@
 [T3]  按键测试（依次检测 AP 键、BOOT 键被按下）
   │   自动判断，超时 10s/键 → FAIL
   ▼
-[T4]  AHT20 传感器测试（I2C + 读值范围校验）
-  │   自动判断
+[T4]  ES8311 CODEC 测试
+  │   T4-A: I2C 设备检测（自动）
+  │   T4-B: PA_CTRL 使能 + I2S 播放 1kHz 正弦波 3s（人工听音确认）
   ▼
-[T5]  电池电压 ADC 测试（占位，当前板未接，自动 SKIP）
-  │   不计入 PASS/FAIL
-  ▼
-[T6]  WiFi 扫描测试（扫描 AP 数量 ≥ 1）
-  │   自动判断
-  ▼
-[T7]  SD 卡测试（SPI1 初始化 + 挂载 + 读写验证）
-  │   自动判断
-  ▼
-[T8]  LoRa SPI 通路测试（共用 FSPI 总线，CS=GPIO8）
-  │   RST 复位 → 等待 BUSY=LOW → GetStatus 命令 → MISO 非全 0xFF → 自动判断
-  ▼
-[T9]  ES8311 CODEC 测试
-  │   T9-A: I2C 设备检测（自动）
-  │   T9-B: PA_CTRL 使能 + I2S 播放 1kHz 正弦波 3s（人工听音确认）
-  ▼
-[T10] LMD4737 DMIC 测试
+[T5]  LMD4737 DMIC 测试
   │   Phase-1: 操作员发声 + RMS 检测（自动）
   │   Phase-2: 若无声则自动 Loopback（扬声器播放 → DMIC 录音）验证通路
+  ▼
+[T6]  AHT20 传感器测试（I2C + 读值范围校验）
+  │   自动判断
+  ▼
+[T7]  电池电压 ADC 测试（占位，当前板未接，自动 SKIP）
+  │   不计入 PASS/FAIL
+  ▼
+[T8]  WiFi 扫描测试（扫描 AP 数量 ≥ 1）
+  │   自动判断
+  ▼
+[T9]  SD 卡测试（SPI1 初始化 + 挂载 + 读写验证）
+  │   自动判断
+  ▼
+[T10] LoRa SPI 通路测试（共用 FSPI 总线，CS=GPIO8）
+  │   RST 复位 → 等待 BUSY=LOW → GetStatus 命令 → MISO 非全 0xFF → 自动判断
   ▼
 [T11] 测试汇总
       显示所有测试项 PASS/FAIL/SKIP 列表
@@ -106,7 +106,7 @@
 │  NM-Display-420             │
 │  Factory Test FW v1.3       │
 │                             │
-│  Press AP to Start          │
+│  Press AP button to Start   │
 └─────────────────────────────┘
 ```
 
@@ -213,7 +213,7 @@
 │ T3                          │
 │ Button Test                 │
 │─────────────────────────────│
-│ Press AP key                │
+│ Press AP button             │
 │                             │
 │ AP   [ WAIT ]               │
 │ BOOT [ WAIT ]               │
@@ -222,7 +222,7 @@
 检测到按键后对应行变为 `[ OK ]`，两键均检测到后底部显示 `[PASS]`。
 
 **步骤**：
-1. Screen shows T3 title, prompt "Press AP key", poll GPIO45, timeout 10s
+1. Screen shows T3 title, prompt "Press AP button", poll GPIO45, timeout 10s
 2. Detected → AP row changes to `[ OK ]`, prompt "Press BOOT key", poll GPIO0, timeout 10s
 3. Detected → BOOT row changes to `[ OK ]`, auto PASS
 4. Any key timeout → row changes to `[ !! ]`, show `[FAIL]`, wait AP to continue
@@ -231,14 +231,137 @@
 
 ---
 
-### T4 — AHT20 传感器测试
+### T4 — ES8311 CODEC 测试
+
+**目的**：验证 ES8311 I2C 通信正常、外部功放使能正常、I2S 音频播放正常。
+
+**屏幕布局（T4-A）**：
+```
+┌─────────────────────────────┐
+│ T4                          │
+│ ES8311 CODEC                │
+│─────────────────────────────│
+│ I2C probe (0x18)... OK      │
+│─────────────────────────────│
+│ Result: [PASS]              │
+│ AP=Next                     │
+└─────────────────────────────┘
+```
+
+**屏幕布局（T4-B）**：
+```
+┌─────────────────────────────┐
+│ T4                          │
+│ ES8311 CODEC - Playback     │
+│─────────────────────────────│
+│ PA Amp enabled              │
+│ Playing 1kHz tone...        │
+│ Remaining: 3s               │
+│─────────────────────────────│
+│ Can you hear 1kHz tone?     │
+│ AP=PASS   BOOT=FAIL         │
+└─────────────────────────────┘
+```
+
+#### T4-A：I2C 设备检测（自动）
+
+1. I2C 总线（SDA=39, SCL=38）初始化
+2. 对地址 `0x18`（`ES8311_CODEC_DEFAULT_ADDR`）发起写探测
+3. ACK → screen shows `I2C probe (0x18)... OK`; NACK → `FAIL` (T4-B also skipped)
+
+#### T4-B：I2S 播放测试（人工听音确认）
+
+**实现方式**：使用 `esp_codec_dev` 框架，`esp_codec_dev_write()` 输出 PCM。
+
+1. **Pull GPIO41 (PA_CTRL) HIGH** to enable external amplifier; screen shows "PA Amp enabled"
+2. 配置 I2S（IDF `driver/i2s_std.h`，Master/Philips/16kHz/16bit/Stereo）：
+   - MCLK=21, BCLK=15, LRCK=17, DOUT=16, DIN=18
+3. 通过 `esp_codec_dev` 初始化 ES8311（`ESP_CODEC_DEV_WORK_MODE_BOTH`）
+4. `esp_codec_dev_set_out_vol(output_dev, 75.0)` 设置输出音量
+5. 生成 **1kHz 正弦波** PCM 缓冲（16kHz/16bit/1s），循环播放 **3 次**，屏幕显示倒计时
+6. 播放完成后屏幕显示操作提示，等待按键
+7. 判断后，**拉低 GPIO41**（PA_CTRL=LOW）关断功放
+
+**判断**：T4-A 自动；T4-B 人工确认。AP=PASS / BOOT=FAIL。
+
+> 板上扬声器为 **4Ω 喇叭** + 外部功放（PA_CTRL=GPIO41 使能），播放前务必先拉高 PA_CTRL。
+
+---
+
+### T5 — LMD4737 DMIC 测试
+
+**目的**：验证数字麦克风 LMD4737 通过 ES8311 DMIC 接口录音正常，信号有效。
+
+**架构说明**：  
+LMD4737 为 PDM DMIC，时钟由 ES8311 `DMIC_CLK` 驱动，数据经 `DMIC_DAT` 回到 ES8311；ES8311 内部 PDM→PCM 转换后经 I2S ADC 通路输出到 ESP32 DIN（GPIO18）。录音使用 `esp_codec_dev_read(input_dev, buf, size)`。
+
+**屏幕布局（Phase-1）**：
+```
+┌─────────────────────────────┐
+│ T5                          │
+│ LMD4737 DMIC Mic Test       │
+│─────────────────────────────│
+│ Make noise at the mic       │
+│ (speak or clap)             │
+│                             │
+│ Countdown: 8s               │
+│ RMS: ---                    │
+│─────────────────────────────│
+│ Recording...                │
+└─────────────────────────────┘
+```
+
+**屏幕布局（Phase-2 Loopback）**：
+```
+┌─────────────────────────────┐
+│ T5                          │
+│ LMD4737 DMIC - Loopback     │
+│─────────────────────────────│
+│ No audio detected           │
+│ Starting loopback test...   │
+│ Play ref tone + record      │
+│                             │
+│ RMS: ---                    │
+│─────────────────────────────│
+│ Result: [PASS]              │
+│ AP=Next                     │
+└─────────────────────────────┘
+```
+
+**双阶段测试流程**：
+
+#### Phase-1：操作员发声（主要路径）
+
+1. 屏幕显示 T5 标题 + 倒计时提示，10s 内持续刷新 RMS 读数
+2. `esp_codec_dev_set_in_gain(input_dev, 40.0)` 设置录音增益
+3. 以 **16kHz/16bit/单声道** 录制 **2 秒**（≈64KB）到 SPIRAM 缓冲
+4. 计算 RMS 能量，屏幕显示测量值
+5. 若 **RMS > `DMIC_RMS_THRESHOLD_VOICE`（初始值：150）** → 显示 `[PASS]`，跳过 Phase-2
+
+#### Phase-2：自动 Loopback（底底路径）
+
+> 操作员未发声（RMS ≤ 阈值）时自动触发，无需操作员介入。
+
+1. 屏幕切换到 Loopback 布局
+2. 拉高 GPIO41（PA_CTRL）使能功放
+3. `esp_codec_dev_write()` 播放 **1kHz 正弦波 2 秒**（扬声器发声，DMIC 拾取）
+4. 同步 `esp_codec_dev_read()` 录制 **2 秒**（TX/RX 双通道并行）
+5. 计算录音缓冲 RMS，屏幕显示测量值
+6. 若 **RMS > `DMIC_RMS_THRESHOLD_LOOPBACK`（初始值：50）** → `[PASS]`，否则 `[FAIL]`
+7. 拉低 GPIO41 关断功放
+
+**内存需求**：≈64KB，从 SPIRAM 分配（`heap_caps_malloc(size, MALLOC_CAP_SPIRAM)`）。
+
+---
+
+### T6 — AHT20 传感器测试
 
 **目的**：验证 I2C 总线和 AHT20 传感器正常工作。
 
 **屏幕布局**：
 ```
 ┌─────────────────────────────┐
-│ T4                          │
+│ T6                          │
 │ AHT20 Sensor Test           │
 │─────────────────────────────│
 │ Initializing...             │
@@ -254,8 +377,8 @@
 **步骤**：
 1. 拉高 GPIO40（电源使能），延时 200ms
 2. `Wire.begin(39, 38)` 初始化 I2C，启动 AHT20（最多 5 次重试，间隔 40ms）
-3. Read temperature + humidity, refresh screen with measured values
-4. Auto-judge, show `[PASS]` or `[FAIL: reason]`, wait for AP key to continue
+3. 读取温湿度，屏幕刷新显示测量值
+4. 自动判断，显示 `[PASS]` 或 `[FAIL: reason]`，等待 AP 键继续
 
 **自动判断条件**（全部满足 → PASS）：
 - `aht.begin()` 返回 true
@@ -264,14 +387,14 @@
 
 ---
 
-### T5 — 电池电压 ADC 测试（占位）
+### T7 — 电池电压 ADC 测试（占位）
 
 **当前状态**：⚠️ 当前版本板子尚未接入电池 ADC 电路，测试时自动标记 `SKIP`，不计入 PASS/FAIL 统计。
 
 **屏幕显示**：
 ```
 ┌─────────────────────────────┐
-│ T5                          │
+│ T7                          │
 │ Battery ADC                 │
 │─────────────────────────────│
 │ [SKIP] HW not populated     │
@@ -286,14 +409,14 @@
 
 ---
 
-### T6 — WiFi 扫描测试
+### T8 — WiFi 扫描测试
 
 **目的**：验证 WiFi 模块可正常工作（无需连接，仅扫描）。
 
 **屏幕布局**：
 ```
 ┌─────────────────────────────┐
-│ T6                          │
+│ T8                          │
 │ WiFi Scan Test              │
 │─────────────────────────────│
 │ Scanning...                 │
@@ -317,7 +440,7 @@
 
 ---
 
-### T7 — SD 卡测试
+### T9 — SD 卡测试
 
 **目的**：验证 TF/SD 卡 SPI 接口正常，卡可挂载并能读写。
 
@@ -326,7 +449,7 @@
 **屏幕布局**：
 ```
 ┌─────────────────────────────┐
-│ T7                          │
+│ T9                          │
 │ SD Card R/W Test            │
 │─────────────────────────────│
 │ Init... OK                  │
@@ -339,13 +462,12 @@
 │ AP=Next                     │
 └─────────────────────────────┘
 ```
-Each step appends status (OK / FAIL) as it completes; no need to wait for all steps to finish before refreshing.
 
 **步骤**：
 1. 初始化独立 `SPIClass spi_sd(FSPI)`，`spi_sd.begin(9, 11, 10, 7)`
 2. `SD.begin(7, spi_sd)` 挂载 SD 卡（超时 3s）
 3. 读取卡信息（类型、容量），屏幕刷新显示
-4. 写入测试文件 `/factory_test.txt`（内容："NM-Display-420 factory test OK"）
+4. 写入测试文件 `/factory_test.txt`（内容：“NM-Display-420 factory test OK”）
 5. 回读文件内容，校验与写入一致
 6. 删除测试文件，卸载，显示最终结果
 
@@ -356,9 +478,9 @@ Each step appends status (OK / FAIL) as it completes; no need to wait for all st
 
 ---
 
-### T8 — LoRa SPI 通路测试
+### T10 — LoRa SPI 通路测试
 
-**目的**：验证 LoRa 模块焊盘 SPI 通路接通，芯片可响应命令（不涉及 RF 功能）。
+**目的**：验证 LoRa 模块焚盘 SPI 通路接通，芯片可响应命令（不涉及 RF 功能）。
 
 **引脚**：
 | 信号 | GPIO |
@@ -371,12 +493,12 @@ Each step appends status (OK / FAIL) as it completes; no need to wait for all st
 | RST | 12 |
 | DIO1 | 14（本测试不使用）|
 
-> MOSI/MISO/SCK 与 SD 卡共用 FSPI 总线，仅 CS 不同（SD=GPIO7，LoRa=GPIO8）。T7 已初始化的 `spi_sd` 实例可复用，或重新 `begin()` 同一组引脚。
+> MOSI/MISO/SCK 与 SD 卡共用 FSPI 总线，仅 CS 不同（SD=GPIO7，LoRa=GPIO8）。T9 已初始化的 `spi_sd` 实例可复用，或重新 `begin()` 同一组引脚。
 
 **屏幕布局**：
 ```
 ┌─────────────────────────────┐
-│ T8                          │
+│ T10                         │
 │ LoRa SPI Bus Test           │
 │─────────────────────────────│
 │ Reset chip... OK            │
@@ -402,130 +524,7 @@ Each step appends status (OK / FAIL) as it completes; no need to wait for all st
 - BUSY 在超时前拉低 → SPI 时钟线/RST 线接通
 - 响应字节不全为 `0xFF`（MISO 浮空/断线）且不全为 `0x00` → 数据线接通，芯片响应
 
-> 此测试**不**验证 LoRa RF 功能，只验证 PCB 焊盘与 SPI 总线的电气连通性。DIO1（GPIO14）在本测试中不使用，仅作为 GPIO 输入悬空。
-
----
-
-### T9 — ES8311 CODEC 测试
-
-**目的**：验证 ES8311 I2C 通信正常、外部功放使能正常、I2S 音频播放正常。
-
-**屏幕布局（T9-A）**：
-```
-┌─────────────────────────────┐
-│ T9                          │
-│ ES8311 CODEC                │
-│─────────────────────────────│
-│ I2C probe (0x18)... OK      │
-│─────────────────────────────│
-│ Result: [PASS]              │
-│ AP=Next                     │
-└─────────────────────────────┘
-```
-
-**屏幕布局（T9-B）**：
-```
-┌─────────────────────────────┐
-│ T9                          │
-│ ES8311 CODEC - Playback     │
-│─────────────────────────────│
-│ PA Amp enabled              │
-│ Playing 1kHz tone...        │
-│ Remaining: 3s               │
-│─────────────────────────────│
-│ Can you hear 1kHz tone?     │
-│ AP=PASS   BOOT=FAIL         │
-└─────────────────────────────┘
-```
-
-#### T8-A：I2C 设备检测（自动）
-
-1. I2C 总线（SDA=39, SCL=38，T4 已初始化）
-2. 对地址 `0x18`（`ES8311_CODEC_DEFAULT_ADDR`）发起写探测
-3. ACK → screen shows `I2C probe (0x18)... OK`; NACK → `FAIL` (T9-B also skipped)
-
-#### T8-B：I2S 播放测试（人工听音确认）
-
-**实现方式**：使用 `esp_codec_dev` 框架，`esp_codec_dev_write()` 输出 PCM。
-
-1. **Pull GPIO41 (PA_CTRL) HIGH** to enable external amplifier; screen shows "PA Amp enabled"
-2. 配置 I2S（IDF `driver/i2s_std.h`，Master/Philips/16kHz/16bit/Stereo）：
-   - MCLK=21, BCLK=15, LRCK=17, DOUT=16, DIN=18
-3. 通过 `esp_codec_dev` 初始化 ES8311（`ESP_CODEC_DEV_WORK_MODE_BOTH`）
-4. `esp_codec_dev_set_out_vol(output_dev, 75.0)` 设置输出音量
-5. 生成 **1kHz 正弦波** PCM 缓冲（16kHz/16bit/1s），循环播放 **3 次**，屏幕显示倒计时
-6. 播放完成后屏幕显示操作提示，等待按键
-7. 判断后，**拉低 GPIO41**（PA_CTRL=LOW）关断功放
-
-**判断**：T9-A 自动；T9-B 人工确认。AP=PASS / BOOT=FAIL。
-
-> 板上扬声器为 **4Ω 喇叭** + 外部功放（PA_CTRL=GPIO41 使能），播放前务必先拉高 PA_CTRL。
-
----
-
-### T9 — LMD4737 DMIC 测试
-
-**目的**：验证数字麦克风 LMD4737 通过 ES8311 DMIC 接口录音正常，信号有效。
-
-**架构说明**：  
-LMD4737 为 PDM DMIC，时钟由 ES8311 `DMIC_CLK` 驱动，数据经 `DMIC_DAT` 回到 ES8311；ES8311 内部 PDM→PCM 转换后经 I2S ADC 通路输出到 ESP32 DIN（GPIO18）。录音使用 `esp_codec_dev_read(input_dev, buf, size)`。
-
-**屏幕布局（Phase-1）**：
-```
-┌─────────────────────────────┐
-│ T10                         │
-│ LMD4737 DMIC Mic Test       │
-│─────────────────────────────│
-│ Make noise at the mic       │
-│ (speak or clap)             │
-│                             │
-│ Countdown: 8s               │
-│ RMS: ---                    │
-│─────────────────────────────│
-│ Recording...                │
-└─────────────────────────────┘
-```
-
-**屏幕布局（Phase-2 Loopback）**：
-```
-┌─────────────────────────────┐
-│ T10                         │
-│ LMD4737 DMIC - Loopback     │
-│─────────────────────────────│
-│ No audio detected           │
-│ Starting loopback test...   │
-│ Play ref tone + record      │
-│                             │
-│ RMS: ---                    │
-│─────────────────────────────│
-│ Result: [PASS]              │
-│ AP=Next                     │
-└─────────────────────────────┘
-```
-
-**双阶段测试流程**：
-
-#### Phase-1：操作员发声（主要路径）
-
-1. 屏幕显示 T9 标题 + 倒计时提示，10s 内持续刷新 RMS 读数
-2. `esp_codec_dev_set_in_gain(input_dev, 40.0)` 设置录音增益
-3. 以 **16kHz/16bit/单声道** 录制 **2 秒**（≈64KB）到 SPIRAM 缓冲
-4. 计算 RMS 能量，屏幕显示测量值
-5. 若 **RMS > `DMIC_RMS_THRESHOLD_VOICE`（初始值：150）** → 显示 `[PASS]`，跳过 Phase-2
-
-#### Phase-2：自动 Loopback（兜底路径）
-
-> 操作员未发声（RMS ≤ 阈值）时自动触发，无需操作员介入。
-
-1. 屏幕切换到 Loopback 布局
-2. 拉高 GPIO41（PA_CTRL）使能功放
-3. `esp_codec_dev_write()` 播放 **1kHz 正弦波 2 秒**（扬声器发声，DMIC 拾取）
-4. 同步 `esp_codec_dev_read()` 录制 **2 秒**（TX/RX 双通道并行）
-5. 计算录音缓冲 RMS，屏幕显示测量值
-6. 若 **RMS > `DMIC_RMS_THRESHOLD_LOOPBACK`（初始值：50）** → `[PASS]`，否则 `[FAIL]`
-7. 拉低 GPIO41 关断功放
-
-**内存需求**：≈64KB，从 SPIRAM 分配（`heap_caps_malloc(size, MALLOC_CAP_SPIRAM)`）。
+> 此测试**不**验证 LoRa RF 功能，只验证 PCB 焚盘与 SPI 总线的电气连通性。DIO1（GPIO14）在本测试中不使用，仅作为 GPIO 输入悬空。
 
 ---
 

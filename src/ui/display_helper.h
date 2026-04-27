@@ -56,7 +56,7 @@ public:
 
             // Instructions — centered
             _epd.setFont(&FreeSansBold9pt7b);
-            _printCentered("Press AP to Start", 170);
+            _printCentered("Press AP button to Start", 170);
 
         } while (_epd.nextPage());
     }
