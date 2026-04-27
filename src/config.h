@@ -2,7 +2,7 @@
 
 // ─── Firmware version ────────────────────────────────────────────────────────
 #define FW_VERSION  "v1.3"
-#define BOARD_NAME  "NM-Display-420"
+#define BOARD_NAME  "NM Display 4.2 Inch"
 
 // ─── EPD (SPI0 / VSPI) ───────────────────────────────────────────────────────
 #define PIN_EPD_SCK   2

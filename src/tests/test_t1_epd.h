@@ -99,15 +99,19 @@ inline TestResult runTestT1(Display& disp, TestRunner& runner) {
     _t1_colorRound(disp, GxEPD_WHITE, GxEPD_BLACK,
                    "Round 1/4 : Full WHITE fill",
                    "AP = OK       BOOT = FAIL");
-    Serial.println("[T1] WHITE fill shown. Screen should be all white. AP=OK  BOOT=FAIL");
-
+    Serial.println("[T1] WHITE fill shown. Screen should be all white.");
+    Serial.println("[T1] >>> waiting for verdict (AP=OK  BOOT=FAIL)");
     if (!runner.waitForVerdict()) {
+        Serial.println("[T1] <<< verdict received: FAIL");
         Serial.println("[T1] FAIL - WHITE fill rejected by operator");
         static const char* failMsg[] = { "WHITE fill FAILED", "Press AP to continue" };
         disp.showTestScreen(1, "EPD Display Test", failMsg, 2, "FAIL", "AP=Next test");
+        Serial.println("[T1] >>> waiting for AP to continue");
         runner.waitForAP();
+        Serial.println("[T1] <<< AP received, moving on");
         return TestResult::FAIL;
     }
+    Serial.println("[T1] <<< verdict received: OK");
     Serial.println("[T1] Round 1 WHITE: OK");
 
     // ── Round 2: BLACK ────────────────────────────────────────────────────────
@@ -115,15 +119,19 @@ inline TestResult runTestT1(Display& disp, TestRunner& runner) {
     _t1_colorRound(disp, GxEPD_BLACK, GxEPD_WHITE,
                    "Round 2/4 : Full BLACK fill",
                    "AP = OK       BOOT = FAIL");
-    Serial.println("[T1] BLACK fill shown. Screen should be all black. AP=OK  BOOT=FAIL");
-
+    Serial.println("[T1] BLACK fill shown. Screen should be all black.");
+    Serial.println("[T1] >>> waiting for verdict (AP=OK  BOOT=FAIL)");
     if (!runner.waitForVerdict()) {
+        Serial.println("[T1] <<< verdict received: FAIL");
         Serial.println("[T1] FAIL - BLACK fill rejected by operator");
         static const char* failMsg[] = { "BLACK fill FAILED", "Press AP to continue" };
         disp.showTestScreen(1, "EPD Display Test", failMsg, 2, "FAIL", "AP=Next test");
+        Serial.println("[T1] >>> waiting for AP to continue");
         runner.waitForAP();
+        Serial.println("[T1] <<< AP received, moving on");
         return TestResult::FAIL;
     }
+    Serial.println("[T1] <<< verdict received: OK");
     Serial.println("[T1] Round 2 BLACK: OK");
 
     // ── Round 3: RED ─────────────────────────────────────────────────────────
@@ -131,23 +139,27 @@ inline TestResult runTestT1(Display& disp, TestRunner& runner) {
     _t1_colorRound(disp, GxEPD_RED, GxEPD_BLACK,
                    "Round 3/4 : Full RED fill",
                    "AP = OK       BOOT = FAIL");
-    Serial.println("[T1] RED fill shown. Screen should be all red. AP=OK  BOOT=FAIL");
-
+    Serial.println("[T1] RED fill shown. Screen should be all red.");
+    Serial.println("[T1] >>> waiting for verdict (AP=OK  BOOT=FAIL)");
     if (!runner.waitForVerdict()) {
+        Serial.println("[T1] <<< verdict received: FAIL");
         Serial.println("[T1] FAIL - RED fill rejected by operator");
         static const char* failMsg[] = { "RED fill FAILED", "Press AP to continue" };
         disp.showTestScreen(1, "EPD Display Test", failMsg, 2, "FAIL", "AP=Next test");
+        Serial.println("[T1] >>> waiting for AP to continue");
         runner.waitForAP();
+        Serial.println("[T1] <<< AP received, moving on");
         return TestResult::FAIL;
     }
+    Serial.println("[T1] <<< verdict received: OK");
     Serial.println("[T1] Round 3 RED: OK");
 
     // ── Round 4: Text rendering ───────────────────────────────────────────────
     Serial.println("[T1] Round 4/4 - Text rendering demo screen ...");
     _t1_textDemo(disp);
-    Serial.println("[T1] Text demo shown: Bold/Normal x Black/Red. AP=PASS  BOOT=FAIL");
-
+    Serial.println("[T1] Text demo shown: Bold/Normal x Black/Red.");
+    Serial.println("[T1] >>> waiting for verdict (AP=PASS  BOOT=FAIL)");
     bool pass = runner.waitForVerdict();
-    Serial.printf("[T1] Result: %s\n", pass ? "PASS" : "FAIL");
+    Serial.printf("[T1] <<< verdict received: %s\n", pass ? "PASS" : "FAIL");
     return pass ? TestResult::PASS : TestResult::FAIL;
 }

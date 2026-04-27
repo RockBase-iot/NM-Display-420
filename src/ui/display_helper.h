@@ -163,9 +163,9 @@ private:
             int16_t totalW = idxW + titleW;
             int16_t startX = (DISP_W - totalW) / 2;
 
-            // Draw "Tx" in large red
+            // Draw "Tx" in large black
             _epd.setFont(&FreeSansBold18pt7b);
-            _epd.setTextColor(GxEPD_RED);
+            _epd.setTextColor(GxEPD_BLACK);
             _epd.setCursor(startX, 36);
             _epd.print(idx);
 
