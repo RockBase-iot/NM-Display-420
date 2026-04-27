@@ -25,11 +25,13 @@
 #define PIN_LORA_DIO1 14   // Not used in SPI connectivity test
 
 // ─── I2S (ES8311 CODEC) ──────────────────────────────────────────────────────
+// HW net mapping (per schematic): GPIO16=I2S_ASDOUT (ES8311 pin7, ADC->ESP),
+//                                  GPIO18=I2S_DSIN  (ES8311 pin9, ESP->DAC)
 #define PIN_I2S_MCLK  21
 #define PIN_I2S_BCLK  15
 #define PIN_I2S_LRCK  17
-#define PIN_I2S_DOUT  16
-#define PIN_I2S_DIN   18
+#define PIN_I2S_DOUT  18   // ESP TX → ES8311 DSDIN (pin 9)
+#define PIN_I2S_DIN   16   // ES8311 ASDOUT (pin 7) → ESP RX
 
 // ─── I2C (AHT20 + ES8311 shared bus) ─────────────────────────────────────────
 #define PIN_I2C_SDA   39
