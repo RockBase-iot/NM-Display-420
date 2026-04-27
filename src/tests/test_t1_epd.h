@@ -3,13 +3,88 @@
 
 #include "test_runner.h"
 
-// ─── Helper: full-screen solid color fill ─────────────────────────────────────
-static void _t1_fillColor(Display& disp, uint16_t color) {
+// ─── Helper: center-print a string at given baseline y using raw EPD ──────────
+static void _t1_printCentered(EpdDisplay& epd, const char* str, int16_t y) {
+    int16_t  x1, y1;
+    uint16_t w, h;
+    epd.getTextBounds(str, 0, y, &x1, &y1, &w, &h);
+    epd.setCursor((400 - (int16_t)w) / 2 - x1, y);
+    epd.print(str);
+}
+
+// ─── Helper: solid color fill with contrasting prompt overlay ─────────────────
+// bgColor   : fill color (GxEPD_WHITE / GxEPD_BLACK / GxEPD_RED)
+// textColor : contrasting text color
+// roundLabel: e.g. "Round 1/4 : Full WHITE fill"
+// prompt    : e.g. "AP = OK     BOOT = FAIL"
+static void _t1_colorRound(Display& disp,
+                            uint16_t bgColor, uint16_t textColor,
+                            const char* roundLabel, const char* prompt) {
     auto& epd = disp.raw();
     epd.setFullWindow();
     epd.firstPage();
     do {
-        epd.fillScreen(color);
+        epd.fillScreen(bgColor);
+
+        epd.setFont(&FreeSansBold9pt7b);
+        epd.setTextColor(textColor);
+        _t1_printCentered(epd, roundLabel, 36);
+
+        // Horizontal rule near bottom
+        epd.drawLine(10, 270, 390, 270, textColor);
+
+        epd.setFont(&FreeSans9pt7b);
+        _t1_printCentered(epd, prompt, 289);
+    } while (epd.nextPage());
+}
+
+// ─── Helper: text demo screen (Round 4) ──────────────────────────────────────
+static void _t1_textDemo(Display& disp) {
+    auto& epd = disp.raw();
+    epd.setFullWindow();
+    epd.firstPage();
+    do {
+        epd.fillScreen(GxEPD_WHITE);
+
+        // ── Title row ────────────────────────────────────────────────────────
+        epd.setFont(&FreeSansBold18pt7b);
+        epd.setTextColor(GxEPD_RED);
+        _t1_printCentered(epd, "T1", 36);
+
+        epd.setFont(&FreeSans9pt7b);
+        epd.setTextColor(GxEPD_BLACK);
+        _t1_printCentered(epd, "EPD Text Rendering Demo", 56);
+
+        epd.drawLine(10, 68, 390, 68, GxEPD_BLACK);
+
+        // ── Font / color samples ──────────────────────────────────────────────
+        // Bold BLACK — large
+        epd.setFont(&FreeSansBold18pt7b);
+        epd.setTextColor(GxEPD_BLACK);
+        _t1_printCentered(epd, "Bold Black Large", 110);
+
+        // Normal BLACK — small
+        epd.setFont(&FreeSans9pt7b);
+        epd.setTextColor(GxEPD_BLACK);
+        _t1_printCentered(epd, "Normal black small  0123456789", 140);
+
+        // Bold RED — large
+        epd.setFont(&FreeSansBold18pt7b);
+        epd.setTextColor(GxEPD_RED);
+        _t1_printCentered(epd, "Bold Red Large", 180);
+
+        // Normal RED — small
+        epd.setFont(&FreeSans9pt7b);
+        epd.setTextColor(GxEPD_RED);
+        _t1_printCentered(epd, "Normal red small  !@#$%^&*()", 210);
+
+        // ── Verdict prompt ────────────────────────────────────────────────────
+        epd.drawLine(10, 245, 390, 245, GxEPD_BLACK);
+        epd.setFont(&FreeSansBold9pt7b);
+        epd.setTextColor(GxEPD_BLACK);
+        _t1_printCentered(epd, "All text clear, bold/normal & colors correct?", 265);
+        epd.setFont(&FreeSans9pt7b);
+        _t1_printCentered(epd, "AP = PASS       BOOT = FAIL", 285);
     } while (epd.nextPage());
 }
 
@@ -17,88 +92,60 @@ static void _t1_fillColor(Display& disp, uint16_t color) {
 inline TestResult runTestT1(Display& disp, TestRunner& runner) {
 
     Serial.println("[T1] EPD Display Test started");
-    Serial.println("[T1] 4 rounds: WHITE / BLACK / RED / Text render");
-
-    // ── Intro screen ──────────────────────────────────────────────────────────
-    {
-        static const char* intro[] = {
-            "Round 1: Full WHITE fill",
-            "Round 2: Full BLACK fill",
-            "Round 3: Full RED fill",
-            "Round 4: Text rendering",
-        };
-        disp.showTestScreen(1, "EPD Display Test",
-                            intro, 4, nullptr, "AP=Start  BOOT=Skip");
-        Serial.println("[T1] Intro screen shown. AP=Start, BOOT=Skip");
-    }
-
-    // Allow BOOT to skip the whole T1 test
-    if (!runner.waitForVerdict()) {
-        Serial.println("[T1] SKIP - user chose to skip EPD test");
-        return TestResult::SKIP;
-    }
+    Serial.println("[T1] Round 1: WHITE fill  Round 2: BLACK fill  Round 3: RED fill  Round 4: Text demo");
 
     // ── Round 1: WHITE ────────────────────────────────────────────────────────
-    Serial.println("[T1] Round 1: Filling screen WHITE...");
-    _t1_fillColor(disp, GxEPD_WHITE);
-    Serial.println("[T1] WHITE fill complete. Verify: screen should be all white.");
-    Serial.println("[T1] AP=White OK  BOOT=Fail");
+    Serial.println("[T1] Round 1/4 - Filling screen WHITE ...");
+    _t1_colorRound(disp, GxEPD_WHITE, GxEPD_BLACK,
+                   "Round 1/4 : Full WHITE fill",
+                   "AP = OK       BOOT = FAIL");
+    Serial.println("[T1] WHITE fill shown. Screen should be all white. AP=OK  BOOT=FAIL");
 
     if (!runner.waitForVerdict()) {
-        Serial.println("[T1] FAIL - WHITE fill not OK");
-        // Restore a readable screen before returning
-        static const char* failMsg[] = { "WHITE fill FAILED" };
-        disp.showTestScreen(1, "EPD Display Test", failMsg, 1, "FAIL", "AP=Next test");
+        Serial.println("[T1] FAIL - WHITE fill rejected by operator");
+        static const char* failMsg[] = { "WHITE fill FAILED", "Press AP to continue" };
+        disp.showTestScreen(1, "EPD Display Test", failMsg, 2, "FAIL", "AP=Next test");
         runner.waitForAP();
         return TestResult::FAIL;
     }
     Serial.println("[T1] Round 1 WHITE: OK");
 
     // ── Round 2: BLACK ────────────────────────────────────────────────────────
-    Serial.println("[T1] Round 2: Filling screen BLACK...");
-    _t1_fillColor(disp, GxEPD_BLACK);
-    Serial.println("[T1] BLACK fill complete. Verify: screen should be all black.");
-    Serial.println("[T1] AP=Black OK  BOOT=Fail");
+    Serial.println("[T1] Round 2/4 - Filling screen BLACK ...");
+    _t1_colorRound(disp, GxEPD_BLACK, GxEPD_WHITE,
+                   "Round 2/4 : Full BLACK fill",
+                   "AP = OK       BOOT = FAIL");
+    Serial.println("[T1] BLACK fill shown. Screen should be all black. AP=OK  BOOT=FAIL");
 
     if (!runner.waitForVerdict()) {
-        Serial.println("[T1] FAIL - BLACK fill not OK");
-        static const char* failMsg[] = { "BLACK fill FAILED" };
-        disp.showTestScreen(1, "EPD Display Test", failMsg, 1, "FAIL", "AP=Next test");
+        Serial.println("[T1] FAIL - BLACK fill rejected by operator");
+        static const char* failMsg[] = { "BLACK fill FAILED", "Press AP to continue" };
+        disp.showTestScreen(1, "EPD Display Test", failMsg, 2, "FAIL", "AP=Next test");
         runner.waitForAP();
         return TestResult::FAIL;
     }
     Serial.println("[T1] Round 2 BLACK: OK");
 
     // ── Round 3: RED ─────────────────────────────────────────────────────────
-    Serial.println("[T1] Round 3: Filling screen RED...");
-    _t1_fillColor(disp, GxEPD_RED);
-    Serial.println("[T1] RED fill complete. Verify: screen should be all red.");
-    Serial.println("[T1] AP=Red OK  BOOT=Fail");
+    Serial.println("[T1] Round 3/4 - Filling screen RED ...");
+    _t1_colorRound(disp, GxEPD_RED, GxEPD_BLACK,
+                   "Round 3/4 : Full RED fill",
+                   "AP = OK       BOOT = FAIL");
+    Serial.println("[T1] RED fill shown. Screen should be all red. AP=OK  BOOT=FAIL");
 
     if (!runner.waitForVerdict()) {
-        Serial.println("[T1] FAIL - RED fill not OK");
-        static const char* failMsg[] = { "RED fill FAILED" };
-        disp.showTestScreen(1, "EPD Display Test", failMsg, 1, "FAIL", "AP=Next test");
+        Serial.println("[T1] FAIL - RED fill rejected by operator");
+        static const char* failMsg[] = { "RED fill FAILED", "Press AP to continue" };
+        disp.showTestScreen(1, "EPD Display Test", failMsg, 2, "FAIL", "AP=Next test");
         runner.waitForAP();
         return TestResult::FAIL;
     }
     Serial.println("[T1] Round 3 RED: OK");
 
     // ── Round 4: Text rendering ───────────────────────────────────────────────
-    Serial.println("[T1] Round 4: Text rendering test...");
-    {
-        static const char* textLines[] = {
-            "BLACK text on WHITE background",
-            "RED  text on WHITE background",
-            "Bold + Normal fonts rendered",
-            "",
-            "All text legible and correct?",
-        };
-        disp.showTestScreen(1, "EPD Display Test",
-                            textLines, 5, nullptr, "AP=PASS  BOOT=FAIL");
-    }
-    Serial.println("[T1] Text render screen shown.");
-    Serial.println("[T1] AP=PASS  BOOT=FAIL");
+    Serial.println("[T1] Round 4/4 - Text rendering demo screen ...");
+    _t1_textDemo(disp);
+    Serial.println("[T1] Text demo shown: Bold/Normal x Black/Red. AP=PASS  BOOT=FAIL");
 
     bool pass = runner.waitForVerdict();
     Serial.printf("[T1] Result: %s\n", pass ? "PASS" : "FAIL");
