@@ -28,13 +28,13 @@ inline TestResult runTestT2(Display& disp, TestRunner& runner) {
         { "WHITE", Adafruit_NeoPixel::Color(255, 255, 255) },
     };
     constexpr uint8_t NUM_COLORS = sizeof(COLORS) / sizeof(COLORS[0]);
-    constexpr uint32_t COLOR_DURATION_MS = 3000;
+    constexpr uint32_t COLOR_DURATION_MS = 1000;
 
-    // ── Show EPD cycling screen ───────────────────────────────────────────────
+    // ── Show EPD cycling screen ─────────────────────────────────
     static const char* infoLines[] = {
         "LED: GPIO47  Count: 1",
         "Sequence: RED > GREEN > BLUE > WHITE",
-        "Each color held for 3 seconds.",
+        "Each color held for 1 second.",
         "",
         "Watch the LED -- all 4 colors should appear.",
     };

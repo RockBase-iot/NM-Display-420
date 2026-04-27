@@ -12,10 +12,7 @@
 #include "config.h"
 #include <Wire.h>
 #include <driver/i2s.h>
-#include <driver/ledc.h>
 #include <driver/gpio.h>
-#include <esp_rom_gpio.h>
-#include <soc/gpio_sig_map.h>
 #include <math.h>
 
 #define T4_DEBUG 1
@@ -106,33 +103,6 @@ static void _es8311_init_playback() {
 #define T4_MCLK_HZ      4000000
 #define T4_BUF_SAMPLES  512
 
-static void _setup_mclk_ledc() {
-    ledc_timer_config_t timer = {
-        .speed_mode      = LEDC_LOW_SPEED_MODE,
-        .duty_resolution = LEDC_TIMER_1_BIT,
-        .timer_num       = LEDC_TIMER_0,
-        .freq_hz         = T4_MCLK_HZ,
-        .clk_cfg         = LEDC_USE_APB_CLK,
-    };
-    ledc_timer_config(&timer);
-
-    ledc_channel_config_t ch = {
-        .gpio_num   = PIN_I2S_MCLK,
-        .speed_mode = LEDC_LOW_SPEED_MODE,
-        .channel    = LEDC_CHANNEL_0,
-        .intr_type  = LEDC_INTR_DISABLE,
-        .timer_sel  = LEDC_TIMER_0,
-        .duty       = 1,
-        .hpoint     = 0,
-    };
-    ledc_channel_config(&ch);
-
-    gpio_set_direction((gpio_num_t)PIN_I2S_MCLK, GPIO_MODE_OUTPUT);
-    esp_rom_gpio_connect_out_signal((gpio_num_t)PIN_I2S_MCLK,
-                                    LEDC_LS_SIG_OUT0_IDX, false, false);
-    T4_LOG("LEDC MCLK on GPIO%d @ %uHz", PIN_I2S_MCLK, (unsigned)T4_MCLK_HZ);
-}
-
 static bool _t4_i2s_init() {
     i2s_config_t cfg = {
         .mode                 = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_TX),
@@ -143,7 +113,7 @@ static bool _t4_i2s_init() {
         .intr_alloc_flags     = ESP_INTR_FLAG_LEVEL1,
         .dma_buf_count        = 4,
         .dma_buf_len          = T4_BUF_SAMPLES,
-        .use_apll             = false,
+        .use_apll             = true,   // APLL gives clean MCLK for any Fs
         .tx_desc_auto_clear   = true,
         .fixed_mclk           = 0,
         .mclk_multiple        = I2S_MCLK_MULTIPLE_256,
@@ -154,18 +124,17 @@ static bool _t4_i2s_init() {
     if (e != ESP_OK) return false;
 
     i2s_pin_config_t pins = {
-        .mck_io_num   = I2S_PIN_NO_CHANGE,
+        .mck_io_num   = PIN_I2S_MCLK,
         .bck_io_num   = PIN_I2S_BCLK,
         .ws_io_num    = PIN_I2S_LRCK,
         .data_out_num = PIN_I2S_DOUT,
         .data_in_num  = I2S_PIN_NO_CHANGE,
     };
     e = i2s_set_pin(I2S_NUM_0, &pins);
-    T4_LOG("i2s_set_pin => %d (bclk=%d lrck=%d dout=%d mclk=LEDC@GPIO%d)",
-           (int)e, PIN_I2S_BCLK, PIN_I2S_LRCK, PIN_I2S_DOUT, PIN_I2S_MCLK);
+    T4_LOG("i2s_set_pin => %d (mclk=%d bclk=%d lrck=%d dout=%d)",
+           (int)e, PIN_I2S_MCLK, PIN_I2S_BCLK, PIN_I2S_LRCK, PIN_I2S_DOUT);
     if (e != ESP_OK) return false;
-
-    _setup_mclk_ledc();
+    T4_LOG("native I2S MCLK on GPIO%d @ %uHz (APLL)", PIN_I2S_MCLK, (unsigned)T4_MCLK_HZ);
     return true;
 }
 
