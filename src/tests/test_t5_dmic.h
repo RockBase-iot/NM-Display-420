@@ -31,8 +31,13 @@
 #define ES8311_ADDR 0x18
 #endif
 
-#define T5_SAMPLE_RATE   15625     // match T4 codec timing (proven good)
-#define T5_MCLK_HZ       4000000   // MCLK/Fs = 256
+// Baseline that's known to deliver actual data from LMD4737 via ES8311 DMIC.
+// BCLK = Fs * 16 * 2 = 500 kHz - below LMD4737's spec lower bound (1 MHz)
+// but in practice the part still produces a noisy signal that contains audio.
+// All other Fs/slot combinations in legacy driver/i2s.h on ESP32-S3 either
+// truncate to silence (bits_per_chan=32) or run RX DMA at the wrong rate.
+#define T5_SAMPLE_RATE   15625
+#define T5_MCLK_HZ       4000000
 #define T5_BUF_SAMPLES   512
 #define T5_RECORD_SEC    5
 
@@ -79,9 +84,9 @@ static void _t5_es8311_init_record() {
     _t5_es8311_write(0x1C, 0x6A);
     _t5_es8311_write(0x44, 0x58);   // ADC -> I2S SDP
 
-    // Analog MIC path: bit7=0 (DMIC off), bits[3:0]=0xA (PGA +30dB).
-    // Avoid DMIC mode because LMD4737 CLK shares BCLK net and isn't usable here.
-    _t5_es8311_write(0x14, 0x1A);
+    // DMIC mode ON (bit7=1) + 30 dB PGA (bits[3:0]=0xA).
+    // BCLK is driven at 1.024 MHz so LMD4737 PDM mic is in spec.
+    _t5_es8311_write(0x14, 0x8A);
 
     _t5_es8311_write(0x17, 0xFF);   // ADC digital volume max
     _t5_es8311_write(0x0E, 0x02);
@@ -148,7 +153,7 @@ static bool _t5_i2s_init_rx() {
         .intr_alloc_flags     = ESP_INTR_FLAG_LEVEL1,
         .dma_buf_count        = 4,
         .dma_buf_len          = T5_BUF_SAMPLES,
-        .use_apll             = true,   // APLL: clean MCLK at any Fs
+        .use_apll             = false,  // legacy driver APLL is broken on S3
         .tx_desc_auto_clear   = false,
         .fixed_mclk           = 0,
         .mclk_multiple        = I2S_MCLK_MULTIPLE_256,
@@ -183,7 +188,7 @@ static bool _t5_i2s_init_tx() {
         .intr_alloc_flags     = ESP_INTR_FLAG_LEVEL1,
         .dma_buf_count        = 4,
         .dma_buf_len          = T5_BUF_SAMPLES,
-        .use_apll             = true,   // APLL: clean MCLK at any Fs
+        .use_apll             = false,  // legacy driver APLL is broken on S3
         .tx_desc_auto_clear   = true,
         .fixed_mclk           = 0,
         .mclk_multiple        = I2S_MCLK_MULTIPLE_256,
@@ -267,7 +272,9 @@ inline TestResult runTestT5(Display& disp, TestRunner& runner) {
         int16_t warm[T5_BUF_SAMPLES * 2];
         size_t br = 0;
         for (int i = 0; i < 4; i++) {
+            uint32_t t0 = millis();
             i2s_read(I2S_NUM_0, warm, sizeof(warm), &br, portMAX_DELAY);
+            T5_LOG("warm[%d] br=%u took=%ums", i, (unsigned)br, (unsigned)(millis()-t0));
         }
     }
 
@@ -281,12 +288,23 @@ inline TestResult runTestT5(Display& disp, TestRunner& runner) {
 
     T5_LOG("Recording %us @ %uHz...", (unsigned)T5_RECORD_SEC, (unsigned)T5_SAMPLE_RATE);
 
+    uint32_t recStartMs = millis();
+    uint32_t readCalls  = 0;
+    uint32_t readBytes  = 0;
+    uint32_t lastDiagMs = recStartMs;
+
     while (recorded < totalSamples && !earlyAbort) {
         size_t br = 0;
         esp_err_t e = i2s_read(I2S_NUM_0, stereoBuf, sizeof(stereoBuf),
                                &br, pdMS_TO_TICKS(200));
-        if (e != ESP_OK || br == 0) {
+        readCalls++;
+        readBytes += br;
+        if (e != ESP_OK) {
             T5_LOG("i2s_read err=%d br=%u", (int)e, (unsigned)br);
+            continue;
+        }
+        if (br == 0) {
+            T5_LOG("i2s_read TIMEOUT br=0 (codec not clocking?)");
             continue;
         }
         size_t frames = br / 4;             // 16-bit stereo -> 4 B/frame
@@ -304,6 +322,16 @@ inline TestResult runTestT5(Display& disp, TestRunner& runner) {
         recorded += frames;
 
         uint32_t now = millis();
+        if (now - lastDiagMs >= 1000) {
+            uint32_t dt = now - lastDiagMs;
+            T5_LOG("diag: t=%ums recorded=%u calls=%u bytes=%u rate~=%uHz",
+                   (unsigned)(now-recStartMs), (unsigned)recorded,
+                   (unsigned)readCalls, (unsigned)readBytes,
+                   (unsigned)((readBytes / 4) * 1000U / dt));
+            lastDiagMs = now;
+            readCalls = 0;
+            readBytes = 0;
+        }
         if (now - lastUiMs > 200) {
             lastUiMs = now;
             uint32_t rms = (recorded > 0)

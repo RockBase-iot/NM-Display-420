@@ -113,7 +113,7 @@ static bool _t4_i2s_init() {
         .intr_alloc_flags     = ESP_INTR_FLAG_LEVEL1,
         .dma_buf_count        = 4,
         .dma_buf_len          = T4_BUF_SAMPLES,
-        .use_apll             = true,   // APLL gives clean MCLK for any Fs
+        .use_apll             = false,
         .tx_desc_auto_clear   = true,
         .fixed_mclk           = 0,
         .mclk_multiple        = I2S_MCLK_MULTIPLE_256,
