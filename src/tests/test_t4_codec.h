@@ -39,7 +39,7 @@ static bool _es8311_read(uint8_t reg, uint8_t& outVal) {
     if (Wire.endTransmission(false) != 0) return false;
     if (Wire.requestFrom((uint8_t)ES8311_ADDR, (uint8_t)1) != 1) return false;
     outVal = Wire.read();
-    T4_LOG("I2C RD reg=0x%02X val=0x%02X", reg, outVal);
+    // T4_LOG("I2C RD reg=0x%02X val=0x%02X", reg, outVal);
     return true;
 }
 

@@ -1,5 +1,10 @@
 #include "test_runner.h"
 #include "config.h"
+#include "spi_buses.h"
+
+// Definition for the second SPI bus (HSPI / SPI3) shared by SD + LoRa.
+// EPD keeps using the default `SPI` global (FSPI / SPI2).
+SPIClass spiPeripheral(HSPI);
 
 // ─── Test implementations (header-only stubs) ─────────────────────────────────
 #include "tests/test_t1_epd.h"
@@ -66,6 +71,11 @@ void TestRunner::runT0() {
     _display.init();
     _display.showWelcome();
 
+    // 4b. Init the second SPI bus (HSPI) shared by SD card and LoRa.
+    // Doing it once here means T9/T10 don't need to call SPI.end()/begin()
+    // and the EPD's default SPI bus stays untouched.
+    initPeripheralSpi();
+
     // 5. Serial log
     Serial.println();
     Serial.println("========================================");
@@ -84,22 +94,23 @@ void TestRunner::runT0() {
 // ─── T11 — Summary ────────────────────────────────────────────────────────────
 
 void TestRunner::runT11() {
-    // Test metadata (name, index into _results[], counts SKIP)
+    // Test metadata. Names mirror README.md sequence table.
     struct TestMeta { uint8_t num; const char* name; };
     static const TestMeta META[] = {
-        { 1,  "EPD Display  " },
-        { 2,  "RGB LED      " },
-        { 3,  "Buttons      " },
-        { 4,  "ES8311 CODEC " },
-        { 5,  "DMIC Mic     " },
-        { 6,  "AHT20 Sensor " },
-        { 7,  "Battery ADC  " },
-        { 8,  "WiFi Scan    " },
-        { 9,  "SD Card      " },
-        { 10, "LoRa SPI Bus " },
+        { 1,  "EPD Display"    },
+        { 2,  "WS2812 RGB LED" },
+        { 3,  "Buttons"        },
+        { 4,  "ES8311 CODEC"   },
+        { 5,  "DMIC Mic"       },
+        { 6,  "AHT20 Sensor"   },
+        { 7,  "Battery ADC"    },
+        { 8,  "WiFi Scan"      },
+        { 9,  "SD Card R/W"    },
+        { 10, "LoRa SPI Bus"   },
     };
 
-    // Build display lines
+    // Build display lines. Block is centered horizontally; rows are
+    // left-aligned within the block (tabular look).
     char lineBuf[10][36];
     const char* lines[10];
 
@@ -111,7 +122,10 @@ void TestRunner::runT11() {
         TestResult r = _results[i];
         const char* tag = (r == TestResult::PASS) ? "PASS" :
                           (r == TestResult::SKIP) ? "SKIP" : "FAIL";
-        snprintf(lineBuf[i], sizeof(lineBuf[i]), "T%-2u %-13s [%s]",
+        // Mono font: "T<num>  <name>........[TAG]" — pad name with dots to
+        // a fixed width so [TAG] always lands in the same column.
+        // 14 chars is the longest name ("WS2812 RGB LED").
+        snprintf(lineBuf[i], sizeof(lineBuf[i]), "T%-2u  %-14s [%s]",
                  (unsigned)num, META[i].name, tag);
         lines[i] = lineBuf[i];
 
@@ -131,7 +145,9 @@ void TestRunner::runT11() {
 
     _display.showTestScreen(11, "Factory Test Summary",
                             lines, 10,
-                            summary, nullptr);
+                            summary, nullptr,
+                            /*linesLeftAlignedBlock=*/true,
+                            /*linesMonospace=*/true);
 
     // Serial output
     Serial.println("========================================");

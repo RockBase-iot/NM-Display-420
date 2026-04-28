@@ -7,6 +7,7 @@
 #include <Fonts/FreeSans9pt7b.h>
 #include <Fonts/FreeSansBold9pt7b.h>
 #include <Fonts/FreeSansBold18pt7b.h>
+#include <Fonts/FreeMono9pt7b.h>
 
 #include "config.h"
 
@@ -70,7 +71,7 @@ public:
     //   result    : "PASS" | "FAIL" | "SKIP" | nullptr
     //   prompt    : e.g. "AP=Next" | "AP=PASS  BOOT=FAIL" | nullptr
 
-    static constexpr uint8_t MAX_LINES = 7;
+    static constexpr uint8_t MAX_LINES = 10;
 
     void showTestScreen(
         uint8_t     testNum,
@@ -78,13 +79,16 @@ public:
         const char* const lines[] = nullptr,
         uint8_t     lineCount     = 0,
         const char* result        = nullptr,
-        const char* prompt        = nullptr)
+        const char* prompt        = nullptr,
+        bool        linesLeftAlignedBlock = false,
+        bool        linesMonospace        = false)
     {
         _epd.setFullWindow();
         _epd.firstPage();
         do {
             _epd.fillScreen(GxEPD_WHITE);
-            _drawTestContent(testNum, title, lines, lineCount, result, prompt);
+            _drawTestContent(testNum, title, lines, lineCount, result, prompt,
+                             linesLeftAlignedBlock, linesMonospace);
         } while (_epd.nextPage());
     }
 
@@ -132,7 +136,9 @@ private:
         const char* const lines[],
         uint8_t     lineCount,
         const char* result,
-        const char* prompt)
+        const char* prompt,
+        bool        linesLeftAlignedBlock = false,
+        bool        linesMonospace        = false)
     {
         char idx[5];
         snprintf(idx, sizeof(idx), "T%u", (unsigned)testNum);
@@ -179,13 +185,41 @@ private:
         // Header divider
         _epd.drawLine(10, 48, DISP_W - 10, 48, GxEPD_BLACK);
 
-        // Content lines — each centered, 22 px apart, starting at Y=74
-        _epd.setFont(&FreeSans9pt7b);
+        // Content lines — start Y and row spacing adapt to row count so
+        // up to MAX_LINES rows still fit above the result divider (y=244).
+        // Default: each line individually centered.
+        // If linesLeftAlignedBlock=true: compute the widest line, then start
+        // every line at the same X so the *block* is centered while each
+        // line is left-aligned (looks tidy for tabular summaries).
+        // If linesMonospace=true: use FreeMono9pt7b for the lines so columns
+        // (e.g. "[PASS]" / "[FAIL]") align by character position.
+        _epd.setFont(linesMonospace ? &FreeMono9pt7b : &FreeSans9pt7b);
         _epd.setTextColor(GxEPD_BLACK);
         const uint8_t count = (lineCount > MAX_LINES) ? MAX_LINES : lineCount;
-        for (uint8_t i = 0; i < count; i++) {
-            if (lines && lines[i] && lines[i][0] != '\0') {
-                _printCentered(lines[i], 74 + i * 22);
+        const int16_t rowDy = (count > 7) ? 17 : 22;
+        const int16_t y0    = (count > 7) ? 70 : 74;
+
+        if (linesLeftAlignedBlock) {
+            int16_t maxW = 0;
+            int16_t maxX1 = 0;
+            for (uint8_t i = 0; i < count; i++) {
+                if (!lines || !lines[i] || lines[i][0] == '\0') continue;
+                int16_t  x1, y1; uint16_t w, h;
+                _epd.getTextBounds(lines[i], 0, 0, &x1, &y1, &w, &h);
+                if ((int16_t)w > maxW) { maxW = (int16_t)w; maxX1 = x1; }
+            }
+            int16_t startX = (DISP_W - maxW) / 2 - maxX1;
+            for (uint8_t i = 0; i < count; i++) {
+                if (lines && lines[i] && lines[i][0] != '\0') {
+                    _epd.setCursor(startX, y0 + i * rowDy);
+                    _epd.print(lines[i]);
+                }
+            }
+        } else {
+            for (uint8_t i = 0; i < count; i++) {
+                if (lines && lines[i] && lines[i][0] != '\0') {
+                    _printCentered(lines[i], y0 + i * rowDy);
+                }
             }
         }
 
