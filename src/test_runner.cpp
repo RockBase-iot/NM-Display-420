@@ -19,24 +19,64 @@ SPIClass spiPeripheral(HSPI);
 #include "tests/test_t10_lora.h"
 
 // ─── Button helpers ───────────────────────────────────────────────────────────
+//
+// Button reads are gated on the EPD BUSY pin being LOW. This panel
+// (GDEY042Z98) drives BUSY HIGH while it is refreshing — and a full-window
+// refresh takes ~10–15 s, during which the MCU is blocking inside
+// firstPage()/nextPage(). If the operator presses AP/BOOT during that
+// window, the press is still active when control returns to the next
+// waitForAP()/waitForVerdict(), and the very first poll in those loops
+// would consume it as a "new" press, putting the test sequence one step
+// ahead of the UI. Treating any sample taken while BUSY=HIGH as "not
+// pressed" makes that whole class of stale presses invisible.
+//
+// Debounce: a candidate press must satisfy BUSY=LOW AND button=LOW at
+// every one of N samples taken 10 ms apart (~50 ms total). This rejects
+// the millisecond-scale bounce/EMI on the BUSY falling edge and on key
+// release that would otherwise sneak past a 2-sample 20 ms window.
 
-bool TestRunner::apPressed() {
-    return digitalRead(PIN_AP_BTN) == LOW;
+static const uint8_t  BTN_DEBOUNCE_SAMPLES = 5;
+static const uint8_t  BTN_DEBOUNCE_STEP_MS = 10;
+
+static bool _btnPressedDebounced(uint8_t pin) {
+    // Quick reject: BUSY already high, or button already high.
+    if (digitalRead(PIN_EPD_BUSY) == HIGH) return false;
+    if (digitalRead(pin) != LOW)           return false;
+
+    // Stable-low debounce: BUSY must stay low and button must stay low for
+    // BTN_DEBOUNCE_SAMPLES consecutive samples.
+    for (uint8_t i = 1; i < BTN_DEBOUNCE_SAMPLES; i++) {
+        delay(BTN_DEBOUNCE_STEP_MS);
+        if (digitalRead(PIN_EPD_BUSY) == HIGH) return false;
+        if (digitalRead(pin) != LOW)           return false;
+    }
+    return true;
 }
 
-bool TestRunner::bootPressed() {
-    return digitalRead(PIN_BOOT_BTN) == LOW;
+bool TestRunner::apPressed()   { return _btnPressedDebounced(PIN_AP_BTN);   }
+bool TestRunner::bootPressed() { return _btnPressedDebounced(PIN_BOOT_BTN); }
+
+// Raw (no BUSY-gate, no debounce) — only used for the release gate below
+// so we can see whether the operator's finger is still on the key.
+static bool _btnHeldRaw(uint8_t pin) { return digitalRead(pin) == LOW; }
+
+// Block until both keys are released. Catches the case where the user
+// pressed during a refresh and is still holding when BUSY falls — we want
+// the first "press" we report to be a fresh release→press edge.
+static void _waitAllReleased() {
+    while (_btnHeldRaw(PIN_AP_BTN) || _btnHeldRaw(PIN_BOOT_BTN)) delay(10);
+    delay(30);  // mechanical/EMI settle after release
 }
 
 void TestRunner::waitForAP() {
-    // Wait for press
+    _waitAllReleased();
     while (!apPressed()) { delay(10); }
     delay(50);  // debounce
     while (apPressed()) { delay(10); }  // wait for release
 }
 
 bool TestRunner::waitForVerdict() {
-    // Returns true = AP (PASS), false = BOOT (FAIL)
+    _waitAllReleased();
     while (true) {
         if (apPressed()) {
             delay(50);
