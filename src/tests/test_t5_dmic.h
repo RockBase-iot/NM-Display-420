@@ -15,7 +15,7 @@
 #include "test_runner.h"
 #include "config.h"
 #include <Wire.h>
-#include <driver/i2s.h>
+#include <driver/i2s_std.h>
 #include <driver/gpio.h>
 #include <esp_heap_caps.h>
 #include <math.h>
@@ -31,24 +31,29 @@
 #define ES8311_ADDR 0x18
 #endif
 
-// Baseline that's known to deliver actual data from LMD4737 via ES8311 DMIC.
-// BCLK = Fs * 16 * 2 = 500 kHz - below LMD4737's spec lower bound (1 MHz)
-// but in practice the part still produces a noisy signal that contains audio.
-// All other Fs/slot combinations in legacy driver/i2s.h on ESP32-S3 either
-// truncate to silence (bits_per_chan=32) or run RX DMA at the wrong rate.
-#define T5_SAMPLE_RATE   15625
-#define T5_MCLK_HZ       4000000
+// Migrated to i2s_std (IDF 5.x) - the new driver computes MCLK/BCLK
+// dividers correctly on ESP32-S3.
+//
+// LMD4737 PDM clock spec is 1.0-3.5 MHz. Hardware route 1: PDM clock pin
+// shares the I2S BCLK net, so PDM_CLK = BCLK = Fs * 16 * 2 (16-bit stereo).
+// To stay in spec we MUST run Fs >= ~31.25 kHz.
+//
+// At Fs=32 kHz: BCLK = 1.024 MHz, MCLK = 8.192 MHz. ES8311 register config
+// (LRCK_DIV=256, ADC_OSR=0x03) is MCLK/Fs ratio based, so it auto-scales.
+#define T5_SAMPLE_RATE   32000
 #define T5_BUF_SAMPLES   512
 #define T5_RECORD_SEC    5
+
+// I2S channel handle (single channel, reused for RX then TX)
+static i2s_chan_handle_t _t5_rx_handle = nullptr;
+static i2s_chan_handle_t _t5_tx_handle = nullptr;
 
 // --- ES8311 helpers ---------------------------------------------------------
 static uint8_t _t5_es8311_write(uint8_t reg, uint8_t val) {
     Wire.beginTransmission(ES8311_ADDR);
     Wire.write(reg);
     Wire.write(val);
-    uint8_t err = Wire.endTransmission();
-    T5_LOG("I2C WR reg=0x%02X val=0x%02X err=%u", reg, val, err);
-    return err;
+    return Wire.endTransmission();
 }
 
 // Configure ES8311 for DMIC input + I2S ADC output.
@@ -84,9 +89,11 @@ static void _t5_es8311_init_record() {
     _t5_es8311_write(0x1C, 0x6A);
     _t5_es8311_write(0x44, 0x58);   // ADC -> I2S SDP
 
-    // DMIC mode ON (bit7=1) + 30 dB PGA (bits[3:0]=0xA).
-    // BCLK is driven at 1.024 MHz so LMD4737 PDM mic is in spec.
-    _t5_es8311_write(0x14, 0x8A);
+    // DMIC mode ON (bit7=1) + DMIC_POL=1 (sample on falling edge of PDM_CLK)
+    // + 30 dB PGA (bits[3:0]=0xA).
+    // POL=0 (0x8A) yielded only noise even with proper BCLK; POL=1 matches
+    // LMD4737 (data valid on PDM_CLK rising edge -> ES8311 latches on falling).
+    _t5_es8311_write(0x14, 0xCA);
 
     _t5_es8311_write(0x17, 0xFF);   // ADC digital volume max
     _t5_es8311_write(0x0E, 0x02);
@@ -144,73 +151,95 @@ static void _t5_es8311_init_playback() {
 }
 
 static bool _t5_i2s_init_rx() {
-    i2s_config_t cfg = {
-        .mode                 = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_RX),
-        .sample_rate          = T5_SAMPLE_RATE,
-        .bits_per_sample      = I2S_BITS_PER_SAMPLE_16BIT,
-        .channel_format       = I2S_CHANNEL_FMT_RIGHT_LEFT,
-        .communication_format = I2S_COMM_FORMAT_STAND_I2S,
-        .intr_alloc_flags     = ESP_INTR_FLAG_LEVEL1,
-        .dma_buf_count        = 4,
-        .dma_buf_len          = T5_BUF_SAMPLES,
-        .use_apll             = false,  // legacy driver APLL is broken on S3
-        .tx_desc_auto_clear   = false,
-        .fixed_mclk           = 0,
-        .mclk_multiple        = I2S_MCLK_MULTIPLE_256,
-        .bits_per_chan        = I2S_BITS_PER_CHAN_DEFAULT,
-    };
-    esp_err_t e = i2s_driver_install(I2S_NUM_0, &cfg, 0, nullptr);
-    T5_LOG("i2s_driver_install(RX) => %d", (int)e);
+    i2s_chan_config_t chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_0, I2S_ROLE_MASTER);
+    // 8 descriptors x 1024 frames = 8192 frames = 512 ms of buffering at 16kHz.
+    // Generous buffering so EPD partial refresh stalls don't overrun DMA.
+    chan_cfg.dma_desc_num  = 8;
+    chan_cfg.dma_frame_num = 1024;
+    esp_err_t e = i2s_new_channel(&chan_cfg, nullptr, &_t5_rx_handle);
+    T5_LOG("i2s_new_channel(RX) => %d", (int)e);
     if (e != ESP_OK) return false;
 
-    i2s_pin_config_t pins = {
-        .mck_io_num   = PIN_I2S_MCLK,
-        .bck_io_num   = PIN_I2S_BCLK,
-        .ws_io_num    = PIN_I2S_LRCK,
-        .data_out_num = I2S_PIN_NO_CHANGE,
-        .data_in_num  = PIN_I2S_DIN,
+    i2s_std_slot_config_t slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(
+        I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_STEREO);
+
+    i2s_std_config_t std_cfg = {
+        .clk_cfg  = I2S_STD_CLK_DEFAULT_CONFIG(T5_SAMPLE_RATE),
+        .slot_cfg = slot_cfg,
+        .gpio_cfg = {
+            .mclk = (gpio_num_t)PIN_I2S_MCLK,
+            .bclk = (gpio_num_t)PIN_I2S_BCLK,
+            .ws   = (gpio_num_t)PIN_I2S_LRCK,
+            .dout = I2S_GPIO_UNUSED,
+            .din  = (gpio_num_t)PIN_I2S_DIN,
+            .invert_flags = { .mclk_inv = false, .bclk_inv = false, .ws_inv = false },
+        },
     };
-    e = i2s_set_pin(I2S_NUM_0, &pins);
-    T5_LOG("i2s_set_pin(RX) => %d (din=%d mclk=%d)", (int)e, PIN_I2S_DIN, PIN_I2S_MCLK);
+    e = i2s_channel_init_std_mode(_t5_rx_handle, &std_cfg);
+    T5_LOG("i2s_channel_init_std_mode(RX) => %d (din=%d mclk=%d 16bit slot)",
+           (int)e, PIN_I2S_DIN, PIN_I2S_MCLK);
     if (e != ESP_OK) return false;
 
-    T5_LOG("native I2S MCLK on GPIO%d @ %uHz", PIN_I2S_MCLK, (unsigned)T5_MCLK_HZ);
+    e = i2s_channel_enable(_t5_rx_handle);
+    T5_LOG("i2s_channel_enable(RX) => %d", (int)e);
+    if (e != ESP_OK) return false;
+
+    T5_LOG("i2s_std RX up: Fs=%uHz MCLK=%uHz BCLK=%uHz",
+           (unsigned)T5_SAMPLE_RATE,
+           (unsigned)(T5_SAMPLE_RATE * 256U),
+           (unsigned)(T5_SAMPLE_RATE * 32U));
     return true;
 }
 
+static void _t5_i2s_deinit_rx() {
+    if (_t5_rx_handle) {
+        i2s_channel_disable(_t5_rx_handle);
+        i2s_del_channel(_t5_rx_handle);
+        _t5_rx_handle = nullptr;
+    }
+}
+
 static bool _t5_i2s_init_tx() {
-    i2s_config_t cfg = {
-        .mode                 = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_TX),
-        .sample_rate          = T5_SAMPLE_RATE,
-        .bits_per_sample      = I2S_BITS_PER_SAMPLE_16BIT,
-        .channel_format       = I2S_CHANNEL_FMT_RIGHT_LEFT,
-        .communication_format = I2S_COMM_FORMAT_STAND_I2S,
-        .intr_alloc_flags     = ESP_INTR_FLAG_LEVEL1,
-        .dma_buf_count        = 4,
-        .dma_buf_len          = T5_BUF_SAMPLES,
-        .use_apll             = false,  // legacy driver APLL is broken on S3
-        .tx_desc_auto_clear   = true,
-        .fixed_mclk           = 0,
-        .mclk_multiple        = I2S_MCLK_MULTIPLE_256,
-        .bits_per_chan        = I2S_BITS_PER_CHAN_DEFAULT,
-    };
-    esp_err_t e = i2s_driver_install(I2S_NUM_0, &cfg, 0, nullptr);
-    T5_LOG("i2s_driver_install(TX) => %d", (int)e);
+    i2s_chan_config_t chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_0, I2S_ROLE_MASTER);
+    chan_cfg.dma_desc_num  = 4;
+    chan_cfg.dma_frame_num = T5_BUF_SAMPLES;
+    chan_cfg.auto_clear    = true;
+    esp_err_t e = i2s_new_channel(&chan_cfg, &_t5_tx_handle, nullptr);
+    T5_LOG("i2s_new_channel(TX) => %d", (int)e);
     if (e != ESP_OK) return false;
 
-    i2s_pin_config_t pins = {
-        .mck_io_num   = PIN_I2S_MCLK,
-        .bck_io_num   = PIN_I2S_BCLK,
-        .ws_io_num    = PIN_I2S_LRCK,
-        .data_out_num = PIN_I2S_DOUT,
-        .data_in_num  = I2S_PIN_NO_CHANGE,
+    i2s_std_config_t std_cfg = {
+        .clk_cfg  = I2S_STD_CLK_DEFAULT_CONFIG(T5_SAMPLE_RATE),
+        .slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_STEREO),
+        .gpio_cfg = {
+            .mclk = (gpio_num_t)PIN_I2S_MCLK,
+            .bclk = (gpio_num_t)PIN_I2S_BCLK,
+            .ws   = (gpio_num_t)PIN_I2S_LRCK,
+            .dout = (gpio_num_t)PIN_I2S_DOUT,
+            .din  = I2S_GPIO_UNUSED,
+            .invert_flags = { .mclk_inv = false, .bclk_inv = false, .ws_inv = false },
+        },
     };
-    e = i2s_set_pin(I2S_NUM_0, &pins);
-    T5_LOG("i2s_set_pin(TX) => %d (dout=%d mclk=%d)", (int)e, PIN_I2S_DOUT, PIN_I2S_MCLK);
+    e = i2s_channel_init_std_mode(_t5_tx_handle, &std_cfg);
+    T5_LOG("i2s_channel_init_std_mode(TX) => %d (dout=%d mclk=%d)", (int)e, PIN_I2S_DOUT, PIN_I2S_MCLK);
     if (e != ESP_OK) return false;
 
-    T5_LOG("native I2S MCLK on GPIO%d @ %uHz", PIN_I2S_MCLK, (unsigned)T5_MCLK_HZ);
+    e = i2s_channel_enable(_t5_tx_handle);
+    T5_LOG("i2s_channel_enable(TX) => %d", (int)e);
+    if (e != ESP_OK) return false;
+
+    T5_LOG("i2s_std TX up: Fs=%uHz MCLK=GPIO%d (Fs*256=%uHz)",
+           (unsigned)T5_SAMPLE_RATE, PIN_I2S_MCLK,
+           (unsigned)(T5_SAMPLE_RATE * 256U));
     return true;
+}
+
+static void _t5_i2s_deinit_tx() {
+    if (_t5_tx_handle) {
+        i2s_channel_disable(_t5_tx_handle);
+        i2s_del_channel(_t5_tx_handle);
+        _t5_tx_handle = nullptr;
+    }
 }
 
 inline TestResult runTestT5(Display& disp, TestRunner& runner) {
@@ -268,23 +297,36 @@ inline TestResult runTestT5(Display& disp, TestRunner& runner) {
     delay(100);
 
     // Discard ~50 ms of warm-up samples.
+    // 16-bit slot, stereo => 4 bytes/frame. Buffers are static to keep them
+    // off the loopTask stack (~8 KB).
     {
-        int16_t warm[T5_BUF_SAMPLES * 2];
+        static int16_t warm[T5_BUF_SAMPLES * 2];
         size_t br = 0;
         for (int i = 0; i < 4; i++) {
             uint32_t t0 = millis();
-            i2s_read(I2S_NUM_0, warm, sizeof(warm), &br, portMAX_DELAY);
+            i2s_channel_read(_t5_rx_handle, warm, sizeof(warm), &br, portMAX_DELAY);
             T5_LOG("warm[%d] br=%u took=%ums", i, (unsigned)br, (unsigned)(millis()-t0));
         }
     }
 
-    int16_t   stereoBuf[T5_BUF_SAMPLES * 2];
+    // Show static "recording..." screen ONCE before we start - any UI update
+    // during the read loop blocks for hundreds of ms (EPD partial refresh)
+    // and overruns the I2S DMA buffer, producing audible gaps / hiss.
+    {
+        char l0[32];
+        snprintf(l0, sizeof(l0), "Attempt #%u", (unsigned)attempt);
+        const char* lines[] = { l0, "Speak / sing for 5s", "",
+                                 "Recording...",
+                                 "(do NOT press anything)" };
+        disp.showTestScreen(5, "DMIC Record", lines, 5, nullptr, nullptr);
+    }
+
+    static int16_t stereoBuf[T5_BUF_SAMPLES * 2];   // 16-bit slots, stereo (~4 KB - keep off stack)
     uint32_t  recorded = 0;
     uint64_t  sumSq    = 0;
     int16_t   peak     = 0;
     bool      earlyAbort   = false;
     bool      earlyVerdict = false;
-    uint32_t  lastUiMs = 0;
 
     T5_LOG("Recording %us @ %uHz...", (unsigned)T5_RECORD_SEC, (unsigned)T5_SAMPLE_RATE);
 
@@ -295,8 +337,8 @@ inline TestResult runTestT5(Display& disp, TestRunner& runner) {
 
     while (recorded < totalSamples && !earlyAbort) {
         size_t br = 0;
-        esp_err_t e = i2s_read(I2S_NUM_0, stereoBuf, sizeof(stereoBuf),
-                               &br, pdMS_TO_TICKS(200));
+        esp_err_t e = i2s_channel_read(_t5_rx_handle, stereoBuf, sizeof(stereoBuf),
+                                       &br, pdMS_TO_TICKS(200));
         readCalls++;
         readBytes += br;
         if (e != ESP_OK) {
@@ -307,7 +349,8 @@ inline TestResult runTestT5(Display& disp, TestRunner& runner) {
             T5_LOG("i2s_read TIMEOUT br=0 (codec not clocking?)");
             continue;
         }
-        size_t frames = br / 4;             // 16-bit stereo -> 4 B/frame
+        // 16-bit slot, stereo -> 4 B/frame.
+        size_t frames = br / 4;
         if (recorded + frames > totalSamples) frames = totalSamples - recorded;
 
         for (size_t i = 0; i < frames; i++) {
@@ -332,28 +375,8 @@ inline TestResult runTestT5(Display& disp, TestRunner& runner) {
             readCalls = 0;
             readBytes = 0;
         }
-        if (now - lastUiMs > 200) {
-            lastUiMs = now;
-            uint32_t rms = (recorded > 0)
-                            ? (uint32_t)sqrt((double)(sumSq / recorded))
-                            : 0;
-            uint32_t remainMs = (totalSamples - recorded) * 1000U / T5_SAMPLE_RATE;
-            char l0[32], l1[32], l2[32], l3[32];
-            snprintf(l0, sizeof(l0), "Attempt #%u", (unsigned)attempt);
-            snprintf(l1, sizeof(l1), "Speak / sing for %ds", T5_RECORD_SEC);
-            snprintf(l2, sizeof(l2), "Time left: %u.%us",
-                     (unsigned)(remainMs / 1000),
-                     (unsigned)((remainMs % 1000) / 100));
-            snprintf(l3, sizeof(l3), "RMS=%u  Peak=%d",
-                     (unsigned)rms, (int)peak);
-            const char* lines[] = { l0, l1, "", l2, l3, "Recording..." };
-            disp.showTestScreen(5, "DMIC Record", lines, 6, nullptr, nullptr);
-
-            if (digitalRead(PIN_BOOT_BTN) == LOW) {
-                delay(50); while (digitalRead(PIN_BOOT_BTN) == LOW) {}
-                earlyAbort = true; earlyVerdict = false;
-            }
-        }
+        // NO UI updates / button polling here - they would stall the read loop
+        // (EPD refresh ~300 ms) and overrun the I2S DMA buffer.
     }
 
     uint32_t rms = (recorded > 0)
@@ -362,7 +385,7 @@ inline TestResult runTestT5(Display& disp, TestRunner& runner) {
     T5_LOG("Recording done: samples=%u rms=%u peak=%d",
            (unsigned)recorded, (unsigned)rms, (int)peak);
 
-    i2s_driver_uninstall(I2S_NUM_0);
+    _t5_i2s_deinit_rx();
 
     if (earlyAbort) {
         // BOOT during record: retry instead of returning.
@@ -401,7 +424,7 @@ inline TestResult runTestT5(Display& disp, TestRunner& runner) {
     }
 
     T5_LOG("Playing back %u samples...", (unsigned)totalSamples);
-    int16_t  txBuf[T5_BUF_SAMPLES * 2];
+    static int16_t txBuf[T5_BUF_SAMPLES * 2];
     uint32_t played = 0;
     bool     pbAbort = false;
     while (played < totalSamples && !pbAbort) {
@@ -413,7 +436,7 @@ inline TestResult runTestT5(Display& disp, TestRunner& runner) {
             txBuf[i*2 + 1] = s;
         }
         size_t bw = 0;
-        i2s_write(I2S_NUM_0, txBuf, chunk * 4, &bw, portMAX_DELAY);
+        i2s_channel_write(_t5_tx_handle, txBuf, chunk * 4, &bw, portMAX_DELAY);
         played += chunk;
 
         if (digitalRead(PIN_BOOT_BTN) == LOW) {
@@ -427,7 +450,7 @@ inline TestResult runTestT5(Display& disp, TestRunner& runner) {
     // Tail flush so DMA empties before we kill the clocks.
     delay(80);
     digitalWrite(PIN_PA_CTRL, LOW);
-    i2s_driver_uninstall(I2S_NUM_0);
+    _t5_i2s_deinit_tx();
 
     // --- Verdict screen -----------------------------------------------------
     bool autoPass = (rms > DMIC_RMS_THRESHOLD_VOICE);

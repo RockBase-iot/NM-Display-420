@@ -11,7 +11,7 @@
 #include "test_runner.h"
 #include "config.h"
 #include <Wire.h>
-#include <driver/i2s.h>
+#include <driver/i2s_std.h>
 #include <driver/gpio.h>
 #include <math.h>
 
@@ -99,43 +99,53 @@ static void _es8311_init_playback() {
     _es8311_dump_key_regs();
 }
 
-#define T4_SAMPLE_RATE  15625
-#define T4_MCLK_HZ      4000000
+#define T4_SAMPLE_RATE  16000
 #define T4_BUF_SAMPLES  512
 
+static i2s_chan_handle_t _t4_tx_handle = nullptr;
+
 static bool _t4_i2s_init() {
-    i2s_config_t cfg = {
-        .mode                 = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_TX),
-        .sample_rate          = T4_SAMPLE_RATE,
-        .bits_per_sample      = I2S_BITS_PER_SAMPLE_16BIT,
-        .channel_format       = I2S_CHANNEL_FMT_RIGHT_LEFT,
-        .communication_format = I2S_COMM_FORMAT_STAND_I2S,
-        .intr_alloc_flags     = ESP_INTR_FLAG_LEVEL1,
-        .dma_buf_count        = 4,
-        .dma_buf_len          = T4_BUF_SAMPLES,
-        .use_apll             = false,
-        .tx_desc_auto_clear   = true,
-        .fixed_mclk           = 0,
-        .mclk_multiple        = I2S_MCLK_MULTIPLE_256,
-        .bits_per_chan        = I2S_BITS_PER_CHAN_DEFAULT,
-    };
-    esp_err_t e = i2s_driver_install(I2S_NUM_0, &cfg, 0, nullptr);
-    T4_LOG("i2s_driver_install => %d", (int)e);
+    i2s_chan_config_t chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_0, I2S_ROLE_MASTER);
+    chan_cfg.dma_desc_num  = 4;
+    chan_cfg.dma_frame_num = T4_BUF_SAMPLES;
+    chan_cfg.auto_clear    = true;
+    esp_err_t e = i2s_new_channel(&chan_cfg, &_t4_tx_handle, nullptr);
+    T4_LOG("i2s_new_channel(TX) => %d", (int)e);
     if (e != ESP_OK) return false;
 
-    i2s_pin_config_t pins = {
-        .mck_io_num   = PIN_I2S_MCLK,
-        .bck_io_num   = PIN_I2S_BCLK,
-        .ws_io_num    = PIN_I2S_LRCK,
-        .data_out_num = PIN_I2S_DOUT,
-        .data_in_num  = I2S_PIN_NO_CHANGE,
+    i2s_std_config_t std_cfg = {
+        .clk_cfg  = I2S_STD_CLK_DEFAULT_CONFIG(T4_SAMPLE_RATE),
+        .slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_STEREO),
+        .gpio_cfg = {
+            .mclk = (gpio_num_t)PIN_I2S_MCLK,
+            .bclk = (gpio_num_t)PIN_I2S_BCLK,
+            .ws   = (gpio_num_t)PIN_I2S_LRCK,
+            .dout = (gpio_num_t)PIN_I2S_DOUT,
+            .din  = I2S_GPIO_UNUSED,
+            .invert_flags = { .mclk_inv = false, .bclk_inv = false, .ws_inv = false },
+        },
     };
-    e = i2s_set_pin(I2S_NUM_0, &pins);
-    T4_LOG("i2s_set_pin => %d (mclk=%d bclk=%d lrck=%d dout=%d)",
+    e = i2s_channel_init_std_mode(_t4_tx_handle, &std_cfg);
+    T4_LOG("i2s_channel_init_std_mode => %d (mclk=%d bclk=%d lrck=%d dout=%d)",
            (int)e, PIN_I2S_MCLK, PIN_I2S_BCLK, PIN_I2S_LRCK, PIN_I2S_DOUT);
     if (e != ESP_OK) return false;
-    T4_LOG("native I2S MCLK on GPIO%d @ %uHz (APLL)", PIN_I2S_MCLK, (unsigned)T4_MCLK_HZ);
+
+    e = i2s_channel_enable(_t4_tx_handle);
+    T4_LOG("i2s_channel_enable(TX) => %d", (int)e);
+    if (e != ESP_OK) return false;
+
+    T4_LOG("i2s_std TX up: Fs=%uHz MCLK=GPIO%d (Fs*256=%uHz)",
+           (unsigned)T4_SAMPLE_RATE, PIN_I2S_MCLK,
+           (unsigned)(T4_SAMPLE_RATE * 256U));
     return true;
+}
+
+static void _t4_i2s_deinit() {
+    if (_t4_tx_handle) {
+        i2s_channel_disable(_t4_tx_handle);
+        i2s_del_channel(_t4_tx_handle);
+        _t4_tx_handle = nullptr;
+    }
 }
 
 inline TestResult runTestT4(Display& disp, TestRunner& runner) {
@@ -204,7 +214,7 @@ inline TestResult runTestT4(Display& disp, TestRunner& runner) {
                 buf[i*2] = s; buf[i*2+1] = s;
             }
             size_t bw = 0;
-            i2s_write(I2S_NUM_0, buf, chunk * 4, &bw, portMAX_DELAY);
+            i2s_channel_write(_t4_tx_handle, buf, chunk * 4, &bw, portMAX_DELAY);
             written += chunk;
             if (digitalRead(PIN_AP_BTN) == LOW) {
                 delay(50); while (digitalRead(PIN_AP_BTN) == LOW) {}
@@ -218,7 +228,7 @@ inline TestResult runTestT4(Display& disp, TestRunner& runner) {
     }
 
     digitalWrite(PIN_PA_CTRL, LOW);
-    i2s_driver_uninstall(I2S_NUM_0);
+    _t4_i2s_deinit();
     T4_LOG("END verdict=%s", verdict ? "PASS" : "FAIL");
     return verdict ? TestResult::PASS : TestResult::FAIL;
 }
