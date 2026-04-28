@@ -90,10 +90,16 @@ static void _t5_es8311_init_record() {
     _t5_es8311_write(0x44, 0x58);   // ADC -> I2S SDP
 
     // DMIC mode ON (bit7=1) + DMIC_POL=1 (sample on falling edge of PDM_CLK)
-    // + 30 dB PGA (bits[3:0]=0xA).
-    // POL=0 (0x8A) yielded only noise even with proper BCLK; POL=1 matches
-    // LMD4737 (data valid on PDM_CLK rising edge -> ES8311 latches on falling).
-    _t5_es8311_write(0x14, 0xCA);
+    // + PGA gain (low 4 bits, 3 dB/step, 0..10 -> 0..30 dB).
+    // POL=0 yielded only noise even with proper BCLK; POL=1 matches LMD4737.
+    // Tweak T5_DMIC_PGA to find the best gain for your environment.
+    #ifndef T5_DMIC_PGA
+    #define T5_DMIC_PGA 0xA   // 0..0xA -> 0/3/6/.../30 dB
+    #endif
+    _t5_es8311_write(0x14, 0xC0 | (T5_DMIC_PGA & 0x0F));
+    T5_LOG("DMIC PGA=%d dB (reg 0x14=0x%02X)",
+           (int)((T5_DMIC_PGA & 0x0F) * 3),
+           0xC0 | (T5_DMIC_PGA & 0x0F));
 
     _t5_es8311_write(0x17, 0xFF);   // ADC digital volume max
     _t5_es8311_write(0x0E, 0x02);
