@@ -50,12 +50,6 @@ inline TestResult runTestT8(Display& disp, TestRunner& runner) {
                             introLines, 4,
                             nullptr, "Please wait...");
     }
-    // Hold intro on screen for at least T8_MIN_HOLD_MS measured from here so
-    // the EPD has fully settled before we draw the result frame; otherwise
-    // a fast scan (~3 s) finishes while the controller is still busy from
-    // the intro refresh and silently drops the result frame.
-    const uint32_t T8_MIN_HOLD_MS = 8000;
-    const uint32_t t8_holdStart   = millis();
 
     WiFi.persistent(false);
     WiFi.mode(WIFI_STA);
@@ -115,18 +109,6 @@ inline TestResult runTestT8(Display& disp, TestRunner& runner) {
     WiFi.scanDelete();
 
     bool autoPass = (n >= 1);
-
-    // Hold intro on screen until the EPD has fully settled (see comment near
-    // t8_holdStart). A fast scan can finish in ~3 s while the panel is still
-    // busy refreshing the intro frame.
-    {
-        uint32_t elapsed = millis() - t8_holdStart;
-        if (elapsed < T8_MIN_HOLD_MS) {
-            uint32_t wait = T8_MIN_HOLD_MS - elapsed;
-            T8_LOG("holding intro for %u ms before result frame", (unsigned)wait);
-            delay(wait);
-        }
-    }
 
     if (autoPass) {
         disp.showTestScreen(8, "WiFi Scan Test", lines, lineCount,

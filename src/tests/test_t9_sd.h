@@ -64,12 +64,6 @@ inline TestResult runTestT9(Display& disp, TestRunner& runner) {
                             introLines, 5,
                             nullptr, "Please wait...");
     }
-    // Anchor for the minimum-hold below: a fast SD card finishes the bench
-    // in <1 s, but the EPD intro refresh is still settling. Drawing the
-    // result frame too soon makes the controller silently drop it. Hold the
-    // intro on screen for at least T9_MIN_HOLD_MS measured from this point.
-    const uint32_t T9_MIN_HOLD_MS = 8000;
-    const uint32_t t9_holdStart   = millis();
 
     // ── 1. Park LoRa CS high so it ignores the bus ───────────────────────────
     pinMode(PIN_LORA_NSS, OUTPUT);
@@ -199,16 +193,7 @@ inline TestResult runTestT9(Display& disp, TestRunner& runner) {
     // Note: spiPeripheral (HSPI) stays initialised — T10 (LoRa) will reuse it.
     // EPD's default SPI bus (FSPI) is on a separate controller and pins, so
     // it does not need to be touched here.
-    // Hold intro on screen long enough that the EPD has fully settled before
-    // we kick off the result frame (see comment near t9_holdStart).
-    {
-        uint32_t elapsed = millis() - t9_holdStart;
-        if (elapsed < T9_MIN_HOLD_MS) {
-            uint32_t wait = T9_MIN_HOLD_MS - elapsed;
-            T9_LOG("holding intro for %u ms before result frame", (unsigned)wait);
-            delay(wait);
-        }
-    }
+
     bool autoPass = sdOk && writeOk && readOk && verifyOk;
 
     char l1[40], l2[40], l3[40], l4[40], l5[40];

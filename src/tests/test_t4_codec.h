@@ -92,7 +92,7 @@ static void _es8311_init_playback() {
     _es8311_write(0x15, 0x40);
     _es8311_write(0x37, 0x08);
     _es8311_write(0x45, 0x00);
-    _es8311_write(0x32, 0xBF);
+    _es8311_write(0x32, 0xC7);
     _es8311_write(0x31, 0x00);
 
     T4_LOG("ES8311 init done, dump key regs");
@@ -185,46 +185,115 @@ inline TestResult runTestT4(Display& disp, TestRunner& runner) {
         return TestResult::FAIL;
     }
 
-    T4_LOG("SWEEP: 500Hz~8kHz, AP=PASS BOOT=FAIL");
-    static const float freqs[] = {500.0f, 1000.0f, 2000.0f, 4000.0f, 8000.0f};
-    static const char* labels[] = {"500 Hz","1000 Hz","2000 Hz","4000 Hz","8000 Hz"};
-    const int nFreqs = 5;
+    T4_LOG("PLAY: sweep + 'Ode to Joy' melody, AP=PASS BOOT=FAIL");
 
-    int idx = 0;
-    bool exitSweep = false, verdict = false;
-    static int16_t buf[T4_BUF_SAMPLES * 2];
+    // ── Sweep frequencies (1 s each) ─────────────────────────────────────────
+    static const float       sweepFreqs[]  = { 500.0f, 1000.0f, 2000.0f,
+                                               3000.0f, 4000.0f, 5000.0f };
+    static const char* const sweepLabels[] = { "500 Hz",  "1000 Hz", "2000 Hz",
+                                               "3000 Hz", "4000 Hz", "5000 Hz" };
+    constexpr int nSweep = sizeof(sweepFreqs) / sizeof(sweepFreqs[0]);
+
+    // ── Beethoven "Ode to Joy" (Symphony No.9, mvt.4 main theme) ───────────
+    // Key of C major. q ≈ 100 BPM (quarter = 300 ms). Two 8-bar phrases
+    // ≈ 19.2 s total — fits the 20 s window cleanly with no looping.
+    // Tones used: C4 D4 E4 F4 G4. No half-tones, easy to recognise globally.
+    struct T4Note { float freq; uint16_t ms; };
+    constexpr float NOTE_C  = 261.63f;
+    constexpr float NOTE_D  = 293.66f;
+    constexpr float NOTE_E  = 329.63f;
+    constexpr float NOTE_F  = 349.23f;
+    constexpr float NOTE_G  = 392.00f;
+    constexpr uint16_t Q  = 300;   // quarter note
+    constexpr uint16_t DQ = 450;   // dotted quarter
+    constexpr uint16_t E8 = 150;   // eighth
+    constexpr uint16_t H  = 600;   // half
+    static const T4Note odeToJoy[] = {
+        // Phrase 1 (8 bars):
+        // | E E F G | G F E D | C C D E | E. D D |
+        // | E E F G | G F E D | C C D E | D. C C |
+        { NOTE_E, Q }, { NOTE_E, Q }, { NOTE_F, Q }, { NOTE_G, Q },
+        { NOTE_G, Q }, { NOTE_F, Q }, { NOTE_E, Q }, { NOTE_D, Q },
+        { NOTE_C, Q }, { NOTE_C, Q }, { NOTE_D, Q }, { NOTE_E, Q },
+        { NOTE_E, DQ },{ NOTE_D, E8 },{ NOTE_D, H },
+
+        { NOTE_E, Q }, { NOTE_E, Q }, { NOTE_F, Q }, { NOTE_G, Q },
+        { NOTE_G, Q }, { NOTE_F, Q }, { NOTE_E, Q }, { NOTE_D, Q },
+        { NOTE_C, Q }, { NOTE_C, Q }, { NOTE_D, Q }, { NOTE_E, Q },
+        { NOTE_D, DQ },{ NOTE_C, E8 },{ NOTE_C, H },
+    };
+    constexpr int nMelody = sizeof(odeToJoy) / sizeof(odeToJoy[0]);
+    constexpr uint32_t MELODY_TOTAL_MS = 20000;
+
+    bool     exitTest = false;
+    bool     verdict  = false;
+    static int16_t  buf[T4_BUF_SAMPLES * 2];
     static uint32_t phase = 0;
 
-    while (!exitSweep) {
-        float f = freqs[idx];
-        char l1[32];
-        snprintf(l1, sizeof(l1), "Playing: %s", labels[idx]);
-        const char* lines[] = { "PA Amp: ON", l1, "", "AP=PASS  BOOT=FAIL" };
-        disp.showTestScreen(4, "CODEC DEBUG SWEEP", lines, 4, nullptr, nullptr);
-        T4_LOG("sweep freq=%.0fHz", f);
-
-        uint32_t total = T4_SAMPLE_RATE;
+    // Inline tone generator: plays `freq` for `durMs` ms (freq=0 -> silence).
+    // Polls AP/BOOT each chunk so we can break out promptly.
+    auto playTone = [&](float freq, uint32_t durMs, const char* tag) {
+        uint64_t total64 = (uint64_t)T4_SAMPLE_RATE * (uint64_t)durMs / 1000ULL;
+        uint32_t total   = (uint32_t)total64;
         uint32_t written = 0;
-        while (written < total && !exitSweep) {
+        const float twoPiFOverFs = 2.0f * (float)M_PI * freq / (float)T4_SAMPLE_RATE;
+        while (written < total && !exitTest) {
             uint32_t chunk = T4_BUF_SAMPLES;
             if (written + chunk > total) chunk = total - written;
-            for (uint32_t i = 0; i < chunk; i++) {
-                int16_t s = (int16_t)(16000.0f * sinf(2.0f * (float)M_PI * f * (float)phase / (float)T4_SAMPLE_RATE));
-                phase++;
-                buf[i*2] = s; buf[i*2+1] = s;
+            if (freq < 0.5f) {
+                memset(buf, 0, chunk * 4);
+            } else {
+                for (uint32_t i = 0; i < chunk; i++) {
+                    int16_t s = (int16_t)(16000.0f * sinf(twoPiFOverFs * (float)phase));
+                    phase++;
+                    buf[i * 2] = s; buf[i * 2 + 1] = s;
+                }
             }
             size_t bw = 0;
             i2s_channel_write(_t4_tx_handle, buf, chunk * 4, &bw, portMAX_DELAY);
             written += chunk;
             if (digitalRead(PIN_AP_BTN) == LOW) {
                 delay(50); while (digitalRead(PIN_AP_BTN) == LOW) {}
-                exitSweep = true; verdict = true;
+                exitTest = true; verdict = true;
             } else if (digitalRead(PIN_BOOT_BTN) == LOW) {
                 delay(50); while (digitalRead(PIN_BOOT_BTN) == LOW) {}
-                exitSweep = true; verdict = false;
+                exitTest = true; verdict = false;
             }
         }
-        if (!exitSweep) idx = (idx + 1) % nFreqs;
+        (void)tag;
+    };
+
+    while (!exitTest) {
+        // ── Phase A: sweep through tone list, 1 s each ─────────────────────
+        for (int i = 0; i < nSweep && !exitTest; i++) {
+            char l1[32];
+            snprintf(l1, sizeof(l1), "Tone: %s", sweepLabels[i]);
+            const char* lines[] = { "PA Amp: ON", l1,
+                                    "Phase: SWEEP",
+                                    "AP=PASS  BOOT=FAIL" };
+            disp.showTestScreen(4, "CODEC SWEEP+MELODY", lines, 4, nullptr, nullptr);
+            T4_LOG("sweep freq=%.0fHz", sweepFreqs[i]);
+            playTone(sweepFreqs[i], 1000, "sweep");
+        }
+
+        // ── Phase B: 'Ode to Joy' for 20 s ─────────────────────────────────
+        {
+            const char* lines[] = { "PA Amp: ON",
+                                    "Tune: Ode to Joy",
+                                    "Phase: MELODY (20s)",
+                                    "AP=PASS  BOOT=FAIL" };
+            disp.showTestScreen(4, "CODEC SWEEP+MELODY", lines, 4, nullptr, nullptr);
+            T4_LOG("ode-to-joy melody start");
+            uint32_t t0 = millis();
+            int      ni = 0;
+            while (!exitTest && (millis() - t0) < MELODY_TOTAL_MS) {
+                const T4Note& n = odeToJoy[ni];
+                playTone(n.freq, n.ms, "melody");
+                ni = (ni + 1) % nMelody;
+            }
+            T4_LOG("ode-to-joy melody end (%lums)",
+                   (unsigned long)(millis() - t0));
+        }
     }
 
     digitalWrite(PIN_PA_CTRL, LOW);
