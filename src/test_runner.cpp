@@ -147,7 +147,7 @@ void TestRunner::runT11() {
                             lines, 10,
                             summary, nullptr,
                             /*linesLeftAlignedBlock=*/true,
-                            /*linesMonospace=*/true);
+                            /*monospaceStartLine=*/0);
 
     // Serial output
     Serial.println("========================================");

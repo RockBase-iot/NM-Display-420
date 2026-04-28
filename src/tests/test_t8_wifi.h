@@ -16,7 +16,9 @@
 
 #define T8_LOG(fmt, ...) Serial.printf("[T8] " fmt "\n", ##__VA_ARGS__)
 
-#define T8_MAX_DISPLAY_AP   5
+// Maximum AP rows we render. Display::MAX_LINES is 10 and one row is taken
+// by the "APs found" header, leaving 9 for SSIDs.
+#define T8_MAX_DISPLAY_AP   9
 #define T8_SCAN_TIMEOUT_MS  15000
 
 static const char* _t8_authStr(wifi_auth_mode_t a) {
@@ -100,10 +102,11 @@ inline TestResult runTestT8(Display& disp, TestRunner& runner) {
 
     for (int i = 0; i < show; i++) {
         String s = WiFi.SSID(i);
-        if (s.length() > 18) s = s.substring(0, 18);
+        if (s.length() > 16) s = s.substring(0, 16);
         if (s.length() == 0) s = "<hidden>";
+        // Monospace columns: SSID(16) + 2sp + RSSI(4) + " dBm " + auth.
         snprintf(apLines[i], sizeof(apLines[i]),
-                 "%-18s %4d %s",
+                 "%-16s  %4d dBm  %s",
                  s.c_str(), (int)WiFi.RSSI(i), _t8_authStr(WiFi.encryptionType(i)));
         lines[lineCount++] = apLines[i];
     }
@@ -127,7 +130,9 @@ inline TestResult runTestT8(Display& disp, TestRunner& runner) {
 
     if (autoPass) {
         disp.showTestScreen(8, "WiFi Scan Test", lines, lineCount,
-                            "PASS", "AP=Next");
+                            "PASS", "AP=Next",
+                            /*linesLeftAlignedBlock=*/true,
+                            /*monospaceStartLine=*/1);
         T8_LOG("PASS (auto, n=%d)", n);
         WiFi.mode(WIFI_OFF);
         runner.waitForAP();
@@ -136,13 +141,17 @@ inline TestResult runTestT8(Display& disp, TestRunner& runner) {
 
     // No APs found — could be a shielded room, ask operator.
     disp.showTestScreen(8, "WiFi Scan Test", lines, lineCount,
-                        nullptr, "AP=PASS  BOOT=FAIL");
+                        nullptr, "AP=PASS  BOOT=FAIL",
+                        /*linesLeftAlignedBlock=*/true,
+                        /*monospaceStartLine=*/1);
     T8_LOG("No AP found, manual verdict required");
     bool pass = runner.waitForVerdict();
     T8_LOG("Operator verdict: %s", pass ? "PASS" : "FAIL");
 
     disp.showTestScreen(8, "WiFi Scan Test", lines, lineCount,
-                        pass ? "PASS" : "FAIL", "AP=Next");
+                        pass ? "PASS" : "FAIL", "AP=Next",
+                        /*linesLeftAlignedBlock=*/true,
+                        /*monospaceStartLine=*/1);
 
     WiFi.mode(WIFI_OFF);
     return pass ? TestResult::PASS : TestResult::FAIL;

@@ -1,7 +1,7 @@
 #pragma once
 
 // ─── Firmware version ────────────────────────────────────────────────────────
-#define FW_VERSION  "v1.3"
+#define FW_VERSION  "v1.3.10"
 #define BOARD_NAME  "NM Display 4.2 Inch"
 
 // ─── EPD (SPI0 / VSPI) ───────────────────────────────────────────────────────

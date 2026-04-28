@@ -91,14 +91,14 @@ public:
         const char* result        = nullptr,
         const char* prompt        = nullptr,
         bool        linesLeftAlignedBlock = false,
-        bool        linesMonospace        = false)
+        uint8_t     monospaceStartLine    = 255)
     {
         _epd.setFullWindow();
         _epd.firstPage();
         do {
             _epd.fillScreen(GxEPD_WHITE);
             _drawTestContent(testNum, title, lines, lineCount, result, prompt,
-                             linesLeftAlignedBlock, linesMonospace);
+                             linesLeftAlignedBlock, monospaceStartLine);
         } while (_epd.nextPage());
     }
 
@@ -148,7 +148,7 @@ private:
         const char* result,
         const char* prompt,
         bool        linesLeftAlignedBlock = false,
-        bool        linesMonospace        = false)
+        uint8_t     monospaceStartLine    = 255)
     {
         char idx[5];
         snprintf(idx, sizeof(idx), "T%u", (unsigned)testNum);
@@ -201,26 +201,39 @@ private:
         // If linesLeftAlignedBlock=true: compute the widest line, then start
         // every line at the same X so the *block* is centered while each
         // line is left-aligned (looks tidy for tabular summaries).
-        // If linesMonospace=true: use FreeMono9pt7b for the lines so columns
-        // (e.g. "[PASS]" / "[FAIL]") align by character position.
-        _epd.setFont(linesMonospace ? &FreeMono9pt7b : &FreeSans9pt7b);
+        // monospaceStartLine: lines with index >= this value use FreeMono9pt7b
+        // (so columns align by character position). 0 = all monospace,
+        // 255 = all proportional.
         _epd.setTextColor(GxEPD_BLACK);
         const uint8_t count = (lineCount > MAX_LINES) ? MAX_LINES : lineCount;
         const int16_t rowDy = (count > 7) ? 17 : 22;
         const int16_t y0    = (count > 7) ? 70 : 74;
 
+        auto fontFor = [&](uint8_t i) -> const GFXfont* {
+            return (i >= monospaceStartLine) ? &FreeMono9pt7b
+                                             : &FreeSans9pt7b;
+        };
+
         if (linesLeftAlignedBlock) {
+            // Compute widest among the monospace block (lines >= monospaceStartLine).
             int16_t maxW = 0;
             int16_t maxX1 = 0;
             for (uint8_t i = 0; i < count; i++) {
+                if (i < monospaceStartLine) continue;  // header lines drawn separately
                 if (!lines || !lines[i] || lines[i][0] == '\0') continue;
+                _epd.setFont(fontFor(i));
                 int16_t  x1, y1; uint16_t w, h;
                 _epd.getTextBounds(lines[i], 0, 0, &x1, &y1, &w, &h);
                 if ((int16_t)w > maxW) { maxW = (int16_t)w; maxX1 = x1; }
             }
             int16_t startX = (DISP_W - maxW) / 2 - maxX1;
             for (uint8_t i = 0; i < count; i++) {
-                if (lines && lines[i] && lines[i][0] != '\0') {
+                if (!lines || !lines[i] || lines[i][0] == '\0') continue;
+                _epd.setFont(fontFor(i));
+                if (i < monospaceStartLine) {
+                    // Header line — keep centered with its proportional font.
+                    _printCentered(lines[i], y0 + i * rowDy);
+                } else {
                     _epd.setCursor(startX, y0 + i * rowDy);
                     _epd.print(lines[i]);
                 }
@@ -228,6 +241,7 @@ private:
         } else {
             for (uint8_t i = 0; i < count; i++) {
                 if (lines && lines[i] && lines[i][0] != '\0') {
+                    _epd.setFont(fontFor(i));
                     _printCentered(lines[i], y0 + i * rowDy);
                 }
             }

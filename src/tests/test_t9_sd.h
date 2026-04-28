@@ -212,27 +212,40 @@ inline TestResult runTestT9(Display& disp, TestRunner& runner) {
     bool autoPass = sdOk && writeOk && readOk && verifyOk;
 
     char l1[40], l2[40], l3[40], l4[40], l5[40];
-    snprintf(l1, sizeof(l1), "Type:     %s",          _t9_typeStr(type));
-    snprintf(l2, sizeof(l2), "Capacity: %.2f GB",     capGB);
-    snprintf(l3, sizeof(l3), "Write:    %.2f MB/s",   writeMBs);
-    snprintf(l4, sizeof(l4), "Read:     %.2f MB/s",   readMBs);
-    snprintf(l5, sizeof(l5), "Verify:   %s",
-             verifyOk ? "OK" : (readOk ? "MISMATCH" : "READ FAIL"));
+    char vCap[16], vWr[16], vRd[16];
+    snprintf(vCap, sizeof(vCap), "%.2f GB",   capGB);
+    snprintf(vWr,  sizeof(vWr),  "%.2f MB/s", writeMBs);
+    snprintf(vRd,  sizeof(vRd),  "%.2f MB/s", readMBs);
+    const char* vVerify = verifyOk ? "OK"
+                                   : (readOk ? "MISMATCH" : "READ FAIL");
+    // Monospace tabular layout: label left (9 chars), value right (15 chars).
+    snprintf(l1, sizeof(l1), "%-9s%15s", "Type:",     _t9_typeStr(type));
+    snprintf(l2, sizeof(l2), "%-9s%15s", "Capacity:", vCap);
+    snprintf(l3, sizeof(l3), "%-9s%15s", "Write:",    vWr);
+    snprintf(l4, sizeof(l4), "%-9s%15s", "Read:",     vRd);
+    snprintf(l5, sizeof(l5), "%-9s%15s", "Verify:",   vVerify);
     const char* lines[] = { l1, l2, l3, l4, l5 };
 
     if (autoPass) {
-        disp.showTestScreen(9, "SD Card R/W Test", lines, 5, "PASS", "AP=Next");
+        disp.showTestScreen(9, "SD Card R/W Test", lines, 5,
+                            "PASS", "AP=Next",
+                            /*linesLeftAlignedBlock=*/true,
+                            /*monospaceStartLine=*/0);
         T9_LOG("PASS (auto)");
         runner.waitForAP();
         return TestResult::PASS;
     }
 
     disp.showTestScreen(9, "SD Card R/W Test", lines, 5,
-                        nullptr, "AP=PASS  BOOT=FAIL");
+                        nullptr, "AP=PASS  BOOT=FAIL",
+                        /*linesLeftAlignedBlock=*/true,
+                        /*monospaceStartLine=*/0);
     T9_LOG("Manual verdict required");
     bool pass = runner.waitForVerdict();
     T9_LOG("Operator verdict: %s", pass ? "PASS" : "FAIL");
     disp.showTestScreen(9, "SD Card R/W Test", lines, 5,
-                        pass ? "PASS" : "FAIL", "AP=Next");
+                        pass ? "PASS" : "FAIL", "AP=Next",
+                        /*linesLeftAlignedBlock=*/true,
+                        /*monospaceStartLine=*/0);
     return pass ? TestResult::PASS : TestResult::FAIL;
 }
