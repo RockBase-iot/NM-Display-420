@@ -2,6 +2,50 @@
 // T1 — EPD 3-color display test
 
 #include "test_runner.h"
+#include "config.h"
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+
+// ─── BUSY-pin sanity sampler ────────────────────────────────────────────
+// During an EPD refresh the panel drives BUSY HIGH for several seconds.
+// Polling BUSY from the main thread is unreliable because GxEPD2's
+// firstPage()/nextPage() blocks inside its own _waitWhileBusy(). We spawn
+// a 1 ms sampler task pinned to core 0 that just records whether it ever
+// observed BUSY=HIGH and the total HIGH duration. If after a full refresh
+// the sampler saw 0 ms HIGH, the BUSY net is broken (e.g. virtual solder
+// joint on the MCU side).
+struct _T1BusyMon {
+    volatile bool      run;
+    volatile bool      sawHigh;
+    volatile uint32_t  highMs;
+    TaskHandle_t       handle;
+};
+static _T1BusyMon _t1_busyMon;
+
+static void _t1_busyMonTask(void* arg) {
+    auto* m = static_cast<_T1BusyMon*>(arg);
+    pinMode(PIN_EPD_BUSY, INPUT);
+    while (m->run) {
+        if (digitalRead(PIN_EPD_BUSY) == HIGH) {
+            m->sawHigh = true;
+            m->highMs += 1;
+        }
+        vTaskDelay(1);  // ~1 ms tick
+    }
+    vTaskDelete(nullptr);
+}
+
+static void _t1_busyMonStart() {
+    _t1_busyMon = { true, false, 0, nullptr };
+    xTaskCreatePinnedToCore(_t1_busyMonTask, "t1Busy", 2048,
+                            &_t1_busyMon, 1, &_t1_busyMon.handle, 0);
+}
+
+static void _t1_busyMonStop() {
+    _t1_busyMon.run = false;
+    // Sampler self-deletes on next tick; give it a moment.
+    delay(5);
+}
 
 // ─── Helper: center-print a string at given baseline y using raw EPD ──────────
 static void _t1_printCentered(EpdDisplay& epd, const char* str, int16_t y) {
@@ -95,10 +139,35 @@ inline TestResult runTestT1(Display& disp, TestRunner& runner) {
     Serial.println("[T1] Round 1: WHITE fill  Round 2: BLACK fill  Round 3: RED fill  Round 4: Text demo");
 
     // ── Round 1: WHITE ────────────────────────────────────────────────────────
+    // We piggyback a BUSY-pin self-check on this round: a 1 ms sampler
+    // task records whether GPIO6 ever goes HIGH during the refresh. If
+    // not, the BUSY net is broken (typical cause: virtual solder joint
+    // on the MCU side) and the rest of T1 would run blind, so we fail
+    // immediately with an explicit message.
     Serial.println("[T1] Round 1/4 - Filling screen WHITE ...");
+    _t1_busyMonStart();
     _t1_colorRound(disp, GxEPD_WHITE, GxEPD_BLACK,
                    "Round 1/4 : Full WHITE fill",
                    "AP = OK       BOOT = FAIL");
+    _t1_busyMonStop();
+    Serial.printf("[T1] BUSY self-check: sawHigh=%d  highMs=%lu\n",
+                  (int)_t1_busyMon.sawHigh,
+                  (unsigned long)_t1_busyMon.highMs);
+    if (!_t1_busyMon.sawHigh) {
+        Serial.println("[T1] FAIL - BUSY pin (GPIO6) never went HIGH during refresh");
+        Serial.println("[T1]        check MCU-side BUSY connection / solder joint");
+        static const char* failMsg[] = {
+            "EPD BUSY pin not toggling",
+            "Check GPIO6 connection",
+            "Press AP to continue"
+        };
+        disp.showTestScreen(1, "EPD Display Test", failMsg, 3,
+                            "FAIL", "AP=Next test");
+        Serial.println("[T1] >>> waiting for AP to continue");
+        runner.waitForAP();
+        Serial.println("[T1] <<< AP received, moving on");
+        return TestResult::FAIL;
+    }
     Serial.println("[T1] WHITE fill shown. Screen should be all white.");
     Serial.println("[T1] >>> waiting for verdict (AP=OK  BOOT=FAIL)");
     if (!runner.waitForVerdict()) {
