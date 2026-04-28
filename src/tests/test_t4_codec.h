@@ -92,7 +92,7 @@ static void _es8311_init_playback() {
     _es8311_write(0x15, 0x40);
     _es8311_write(0x37, 0x08);
     _es8311_write(0x45, 0x00);
-    _es8311_write(0x32, 0xC7);
+    _es8311_write(0x32, 0xD3);   // ~ -22 dB DAC volume
     _es8311_write(0x31, 0x00);
 
     T4_LOG("ES8311 init done, dump key regs");
@@ -235,6 +235,13 @@ inline TestResult runTestT4(Display& disp, TestRunner& runner) {
     auto playTone = [&](float freq, uint32_t durMs, const char* tag) {
         uint64_t total64 = (uint64_t)T4_SAMPLE_RATE * (uint64_t)durMs / 1000ULL;
         uint32_t total   = (uint32_t)total64;
+        // Linear attack/release ramp lengths (samples). Removes the wideband
+        // click/pop that otherwise occurs at every note boundary because the
+        // sine is cut at a non-zero phase. 8 ms attack and 25 ms release are
+        // short enough to keep the tone crisp but long enough to be silent
+        // at audible frequencies.
+        const uint32_t attackN  = (T4_SAMPLE_RATE *  8) / 1000;
+        const uint32_t releaseN = (T4_SAMPLE_RATE * 25) / 1000;
         uint32_t written = 0;
         const float twoPiFOverFs = 2.0f * (float)M_PI * freq / (float)T4_SAMPLE_RATE;
         while (written < total && !exitTest) {
@@ -244,7 +251,17 @@ inline TestResult runTestT4(Display& disp, TestRunner& runner) {
                 memset(buf, 0, chunk * 4);
             } else {
                 for (uint32_t i = 0; i < chunk; i++) {
-                    int16_t s = (int16_t)(16000.0f * sinf(twoPiFOverFs * (float)phase));
+                    uint32_t n = written + i;            // sample index in note
+                    float env = 1.0f;
+                    if (n < attackN) {
+                        env = (float)n / (float)attackN;
+                    } else if (n + releaseN > total) {
+                        uint32_t left = total - n;       // samples remaining
+                        env = (float)left / (float)releaseN;
+                        if (env < 0.0f) env = 0.0f;
+                    }
+                    int16_t s = (int16_t)(16000.0f * env *
+                                          sinf(twoPiFOverFs * (float)phase));
                     phase++;
                     buf[i * 2] = s; buf[i * 2 + 1] = s;
                 }
@@ -260,6 +277,10 @@ inline TestResult runTestT4(Display& disp, TestRunner& runner) {
                 exitTest = true; verdict = false;
             }
         }
+        // Reset oscillator phase between notes so the next note's attack
+        // ramp starts at sin(0) = 0 and the falling edge of the release
+        // ramp also lands near 0 — keeps the join free of DC steps.
+        phase = 0;
         (void)tag;
     };
 
