@@ -34,6 +34,16 @@ public:
         _epd.setRotation(0);  // 400 wide × 300 tall
     }
 
+    // Re-arm the panel before a new test. We pass initial_power_on=true so
+    // GxEPD2 issues a real HW reset pulse on RST and re-runs the full init
+    // sequence — without this, the library's internal state can desync after
+    // a peripheral test (WiFi RF cal, SD on HSPI, ...) and the next
+    // showTestScreen returns almost instantly without driving the panel.
+    void resync() {
+        _epd.init(115200, /*initial_power_on=*/true, /*reset_duration=*/2, /*pulldown_rst_mode=*/false);
+        _epd.setRotation(0);
+    }
+
     // ── T0: Welcome screen ────────────────────────────────────────────────────
     void showWelcome() {
         _epd.setFullWindow();

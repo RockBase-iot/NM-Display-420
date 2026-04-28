@@ -181,63 +181,80 @@ static void logTestEnd(uint8_t n, const char* name, TestResult r) {
     Serial.printf("[FACTORY TEST] T%u END   - %s  [%s]\n", (unsigned)n, name, tag);
 }
 
+// Re-sync the EPD before every test so each test starts from a known panel
+// state, regardless of what the previous test did to peripherals (WiFi RF,
+// SD on HSPI, etc.).
+void TestRunner::_preTest() {
+    _display.resync();
+}
+
 // ─── Individual test dispatch wrappers ───────────────────────────────────────
 
 void TestRunner::runT1()  {
+    _preTest();
     logTestStart(1,  "EPD Display");
     TestResult r = runTestT1(_display, *this);
     storeResult(1, r);
     logTestEnd(1, "EPD Display", r);
 }
 void TestRunner::runT2()  {
+    _preTest();
     logTestStart(2,  "WS2812 RGB LED");
     TestResult r = runTestT2(_display, *this);
     storeResult(2, r);
     logTestEnd(2, "WS2812 RGB LED", r);
 }
 void TestRunner::runT3()  {
+    _preTest();
     logTestStart(3,  "Button");
     TestResult r = runTestT3(_display, *this);
     storeResult(3, r);
     logTestEnd(3, "Button", r);
 }
 void TestRunner::runT4()  {
+    _preTest();
     logTestStart(4,  "ES8311 CODEC");
     TestResult r = runTestT4(_display, *this);
     storeResult(4, r);
     logTestEnd(4, "ES8311 CODEC", r);
 }
 void TestRunner::runT5()  {
+    _preTest();
     logTestStart(5,  "LMD4737 DMIC");
     TestResult r = runTestT5(_display, *this);
     storeResult(5, r);
     logTestEnd(5, "LMD4737 DMIC", r);
 }
 void TestRunner::runT6()  {
+    _preTest();
     logTestStart(6,  "AHT20 Sensor");
     TestResult r = runTestT6(_display, *this);
     storeResult(6, r);
     logTestEnd(6, "AHT20 Sensor", r);
 }
 void TestRunner::runT7()  {
+    _preTest();
     logTestStart(7,  "Battery ADC");
     TestResult r = runTestT7(_display, *this);
     storeResult(7, r);
     logTestEnd(7, "Battery ADC", r);
 }
 void TestRunner::runT8()  {
+    _preTest();
     logTestStart(8,  "WiFi Scan");
     TestResult r = runTestT8(_display, *this);
     storeResult(8, r);
     logTestEnd(8, "WiFi Scan", r);
 }
 void TestRunner::runT9()  {
+    _preTest();
     logTestStart(9,  "SD Card");
     TestResult r = runTestT9(_display, *this);
     storeResult(9, r);
     logTestEnd(9, "SD Card", r);
 }
 void TestRunner::runT10() {
+    _preTest();
     logTestStart(10, "LoRa SPI Bus");
     TestResult r = runTestT10(_display, *this);
     storeResult(10, r);

@@ -7,7 +7,10 @@
 // ─── EPD (SPI0 / VSPI) ───────────────────────────────────────────────────────
 #define PIN_EPD_SCK   2
 #define PIN_EPD_MOSI  1
-#define PIN_EPD_MISO  10  // NC on board (display is write-only)
+#define PIN_EPD_MISO  -1  // EPD is write-only and panel pin is NC; do NOT claim
+                          //   a GPIO here — GPIO10 is used by the peripheral
+                          //   HSPI bus (SD MOSI), and any overlap leaves the
+                          //   FSPI bus in a bad state after SD operations.
 #define PIN_EPD_CS    3
 #define PIN_EPD_DC    4
 #define PIN_EPD_RST   5

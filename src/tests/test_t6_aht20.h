@@ -20,8 +20,8 @@
 #define T6_LOG(fmt, ...) Serial.printf("[T6] " fmt "\n", ##__VA_ARGS__)
 
 #define AHT20_I2C_ADDR     0x38
-#define T6_SAMPLE_COUNT    3
-#define T6_SAMPLE_GAP_MS   1000
+#define T6_MIN_DURATION_MS 8000   // sample for at least this long
+#define T6_SAMPLE_GAP_MS   500    // ~16 samples in 8s
 
 // Plausible ranges for indoor / lab environment.
 #define T6_TEMP_MIN_C      -10.0f
@@ -32,6 +32,28 @@
 inline TestResult runTestT6(Display& disp, TestRunner& runner) {
     T6_LOG("AHT20 test started");
     T6_LOG("I2C SDA=%d SCL=%d  PWR=%d (HIGH)", PIN_I2C_SDA, PIN_I2C_SCL, PIN_TEMP_CTL);
+
+    // ── 0. Intro screen ─────────────────────────────────────────────────────
+    // showTestScreen is a *blocking* full EPD refresh (~15 s). When it
+    // returns, the panel is already showing this content. The following
+    // delay keeps the intro on screen long enough for the operator to read
+    // it before the (fast, ~3 s) sample loop starts and the next full
+    // refresh begins.
+    {
+        const char* introLines[] = {
+            ">>> T6 starting <<<",
+            "",
+            "I2C SDA=39  SCL=38  Addr=0x38",
+            "Power on sensor (GPIO40)...",
+            "",
+            "Will sample temperature & humidity",
+            "for at least 8 seconds, please wait...",
+        };
+        disp.showTestScreen(6, "AHT20 - Sampling",
+                            introLines, 7,
+                            nullptr, "Please wait...");
+    }
+    delay(1500);  // hold intro visible
 
     // ── 1. Power on sensor ───────────────────────────────────────────────────
     pinMode(PIN_TEMP_CTL, OUTPUT);
@@ -82,21 +104,27 @@ inline TestResult runTestT6(Display& disp, TestRunner& runner) {
     }
 
     // ── 4. Sample loop ───────────────────────────────────────────────────────
+    // Sample continuously for at least T6_MIN_DURATION_MS, aggregating
+    // min/max/avg. Holding the loop here also gives the EPD time to finish
+    // the running-screen full refresh before we draw the result screen.
     float tMin = 1e9f, tMax = -1e9f, tSum = 0.0f;
     float hMin = 1e9f, hMax = -1e9f, hSum = 0.0f;
     int   ok   = 0;
+    int   total = 0;
+    uint32_t t_begin = millis();
 
-    for (int i = 0; i < T6_SAMPLE_COUNT; i++) {
+    while ((millis() - t_begin) < T6_MIN_DURATION_MS) {
         sensors_event_t humEvt, tempEvt;
         bool gotIt = aht.getEvent(&humEvt, &tempEvt);
+        total++;
         if (!gotIt) {
-            T6_LOG("sample %d: getEvent FAIL", i);
+            T6_LOG("sample %d: getEvent FAIL", total - 1);
             delay(T6_SAMPLE_GAP_MS);
             continue;
         }
         float t = tempEvt.temperature;
         float h = humEvt.relative_humidity;
-        T6_LOG("sample %d: T=%.2fC  H=%.2f%%", i, t, h);
+        T6_LOG("sample %d: T=%.2fC  H=%.2f%%", total - 1, t, h);
 
         if (t < tMin) tMin = t;
         if (t > tMax) tMax = t;
@@ -106,13 +134,13 @@ inline TestResult runTestT6(Display& disp, TestRunner& runner) {
         hSum += h;
         ok++;
 
-        if (i < T6_SAMPLE_COUNT - 1) delay(T6_SAMPLE_GAP_MS);
+        delay(T6_SAMPLE_GAP_MS);
     }
 
     if (ok == 0) {
         const char* lines[] = {
             "Driver init: OK",
-            "Read samples: 0/3",
+            "Read samples: 0",
             "",
             "Sensor not responding.",
         };
@@ -125,14 +153,14 @@ inline TestResult runTestT6(Display& disp, TestRunner& runner) {
     float hAvg = hSum / ok;
     bool inRange = (tAvg >= T6_TEMP_MIN_C && tAvg <= T6_TEMP_MAX_C &&
                     hAvg >= T6_HUMI_MIN_PCT && hAvg <= T6_HUMI_MAX_PCT);
-    bool autoPass = (ok == T6_SAMPLE_COUNT) && inRange;
+    bool autoPass = (ok == total) && inRange;
 
     T6_LOG("Summary: ok=%d/%d  T avg=%.2fC (min=%.2f max=%.2f)  H avg=%.2f%% (min=%.2f max=%.2f)  inRange=%d",
-           ok, T6_SAMPLE_COUNT, tAvg, tMin, tMax, hAvg, hMin, hMax, (int)inRange);
+           ok, total, tAvg, tMin, tMax, hAvg, hMin, hMax, (int)inRange);
 
     // ── 5. Show result, ask operator ─────────────────────────────────────────
     char l1[40], l2[48], l3[48], l4[40], l5[40];
-    snprintf(l1, sizeof(l1), "Samples OK: %d / %d", ok, T6_SAMPLE_COUNT);
+    snprintf(l1, sizeof(l1), "Samples OK: %d / %d", ok, total);
     snprintf(l2, sizeof(l2), "Temp: %.2f C (min %.2f max %.2f)", tAvg, tMin, tMax);
     snprintf(l3, sizeof(l3), "Humi: %.2f %% (min %.2f max %.2f)", hAvg, hMin, hMax);
     snprintf(l4, sizeof(l4), "Range check: %s", inRange ? "OK" : "OUT OF RANGE");

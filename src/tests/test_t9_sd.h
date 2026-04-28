@@ -27,9 +27,14 @@
 #define T9_TEST_PATH       "/T9_TEST.BIN"
 #define T9_TEST_BYTES      (512u * 1024u)   // 512 KiB
 #define T9_BLOCK_BYTES     4096u            // 4 KiB chunks
-#define T9_SPI_HZ          4000000u         // 4 MHz (conservative, SD spec requires
-                                            // <=400kHz init then up to 25MHz; 4MHz
-                                            // works reliably across all cards we tried)
+#define T9_SPI_HZ          40000000u        // 40 MHz — practical max for the
+                                            // Arduino-ESP32 SD (SPI mode) driver.
+                                            // SD spec allows up to 25 MHz in
+                                            // "default speed" SPI mode, but the
+                                            // driver and most modern cards are
+                                            // happy at 40 MHz on short traces.
+                                            // Drop to 20-25 MHz if a specific
+                                            // card / cable proves unreliable.
 
 static const char* _t9_typeStr(uint8_t t) {
     switch (t) {
@@ -45,6 +50,26 @@ inline TestResult runTestT9(Display& disp, TestRunner& runner) {
     T9_LOG("SD test started");
     T9_LOG("FSPI: SCK=%d MISO=%d MOSI=%d  SD_CS=%d  LoRa_NSS=%d",
            PIN_SD_CLK, PIN_SD_MISO, PIN_SD_MOSI, PIN_SD_CS, PIN_LORA_NSS);
+
+    // ── Intro screen (init + 512 KiB R/W bench can take a few seconds) ─────
+    {
+        const char* introLines[] = {
+            "HSPI: CLK=9 MOSI=10 MISO=11",
+            "SD_CS=7  (LoRa NSS=8 parked HIGH)",
+            "",
+            "Mounting card and running",
+            "512 KiB write/read benchmark...",
+        };
+        disp.showTestScreen(9, "SD Card R/W Test",
+                            introLines, 5,
+                            nullptr, "Please wait...");
+    }
+    // Anchor for the minimum-hold below: a fast SD card finishes the bench
+    // in <1 s, but the EPD intro refresh is still settling. Drawing the
+    // result frame too soon makes the controller silently drop it. Hold the
+    // intro on screen for at least T9_MIN_HOLD_MS measured from this point.
+    const uint32_t T9_MIN_HOLD_MS = 8000;
+    const uint32_t t9_holdStart   = millis();
 
     // ── 1. Park LoRa CS high so it ignores the bus ───────────────────────────
     pinMode(PIN_LORA_NSS, OUTPUT);
@@ -171,9 +196,19 @@ inline TestResult runTestT9(Display& disp, TestRunner& runner) {
     // ── 6. Cleanup ───────────────────────────────────────────────────────────
     SD.remove(T9_TEST_PATH);
     SD.end();
-    // Note: spiPeripheral stays initialised — T10 (LoRa) will reuse it.
-    // EPD's default SPI bus is independent and untouched.
-
+    // Note: spiPeripheral (HSPI) stays initialised — T10 (LoRa) will reuse it.
+    // EPD's default SPI bus (FSPI) is on a separate controller and pins, so
+    // it does not need to be touched here.
+    // Hold intro on screen long enough that the EPD has fully settled before
+    // we kick off the result frame (see comment near t9_holdStart).
+    {
+        uint32_t elapsed = millis() - t9_holdStart;
+        if (elapsed < T9_MIN_HOLD_MS) {
+            uint32_t wait = T9_MIN_HOLD_MS - elapsed;
+            T9_LOG("holding intro for %u ms before result frame", (unsigned)wait);
+            delay(wait);
+        }
+    }
     bool autoPass = sdOk && writeOk && readOk && verifyOk;
 
     char l1[40], l2[40], l3[40], l4[40], l5[40];

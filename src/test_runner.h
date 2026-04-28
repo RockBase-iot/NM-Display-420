@@ -67,6 +67,9 @@ private:
     void runT10();
     void runT11();
 
+    // Re-sync EPD before each test (recover from peripheral side-effects).
+    void _preTest();
+
     // ── Result storage helper ────────────────────────────────────────────────
     void storeResult(uint8_t testNum, TestResult r) {
         if (testNum >= 1 && testNum <= 10) {
