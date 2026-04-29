@@ -179,9 +179,9 @@ private:
             int16_t totalW = idxW + titleW;
             int16_t startX = (DISP_W - totalW) / 2;
 
-            // Draw "Tx" in large black
+            // Draw "Tx" in large red
             _epd.setFont(&FreeSansBold18pt7b);
-            _epd.setTextColor(GxEPD_BLACK);
+            _epd.setTextColor(GxEPD_RED);
             _epd.setCursor(startX, 36);
             _epd.print(idx);
 
@@ -232,10 +232,25 @@ private:
                 _epd.setFont(fontFor(i));
                 if (i < monospaceStartLine) {
                     // Header line — keep centered with its proportional font.
+                    _epd.setTextColor(GxEPD_BLACK);
                     _printCentered(lines[i], y0 + i * rowDy);
                 } else {
+                    // If the line ends with "[FAIL]", split-render so the
+                    // FAIL tag stands out in red while the rest stays black.
+                    const char* line = lines[i];
+                    const char* failTag = strstr(line, "[FAIL]");
                     _epd.setCursor(startX, y0 + i * rowDy);
-                    _epd.print(lines[i]);
+                    if (failTag) {
+                        _epd.setTextColor(GxEPD_BLACK);
+                        for (const char* p = line; p < failTag; p++) _epd.print(*p);
+                        _epd.setTextColor(GxEPD_RED);
+                        _epd.print("[FAIL]");
+                        _epd.setTextColor(GxEPD_BLACK);
+                        _epd.print(failTag + 6);
+                    } else {
+                        _epd.setTextColor(GxEPD_BLACK);
+                        _epd.print(line);
+                    }
                 }
             }
         } else {

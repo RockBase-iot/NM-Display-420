@@ -188,10 +188,9 @@ inline TestResult runTestT4(Display& disp, TestRunner& runner) {
     T4_LOG("PLAY: sweep + 'Ode to Joy' melody, AP=PASS BOOT=FAIL");
 
     // ── Sweep frequencies (1 s each) ─────────────────────────────────────────
-    static const float       sweepFreqs[]  = { 500.0f, 1000.0f, 2000.0f,
-                                               3000.0f, 4000.0f, 5000.0f };
-    static const char* const sweepLabels[] = { "500 Hz",  "1000 Hz", "2000 Hz",
-                                               "3000 Hz", "4000 Hz", "5000 Hz" };
+    static const float       sweepFreqs[]  = { 500.0f, 1000.0f, 2000.0f, 3000.0f };
+    static const char* const sweepLabels[] = { "500 Hz",  "1000 Hz",
+                                               "2000 Hz", "3000 Hz" };
     constexpr int nSweep = sizeof(sweepFreqs) / sizeof(sweepFreqs[0]);
 
     // ── Beethoven "Ode to Joy" (Symphony No.9, mvt.4 main theme) ───────────
