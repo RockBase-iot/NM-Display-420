@@ -187,10 +187,9 @@ inline TestResult runTestT4(Display& disp, TestRunner& runner) {
 
     T4_LOG("PLAY: sweep + 'Ode to Joy' melody, AP=PASS BOOT=FAIL");
 
-    // ── Sweep frequencies (1 s each) ─────────────────────────────────────────
-    static const float       sweepFreqs[]  = { 500.0f, 1000.0f, 2000.0f, 3000.0f };
-    static const char* const sweepLabels[] = { "500 Hz",  "1000 Hz",
-                                               "2000 Hz", "3000 Hz" };
+    // ── Sweep frequencies (2 s each, all played under one screen) ──────────
+    static const float sweepFreqs[] = { 500.0f, 1000.0f, 2000.0f,
+                                        3000.0f, 4000.0f };
     constexpr int nSweep = sizeof(sweepFreqs) / sizeof(sweepFreqs[0]);
 
     // ── Beethoven "Ode to Joy" (Symphony No.9, mvt.4 main theme) ───────────
@@ -284,14 +283,18 @@ inline TestResult runTestT4(Display& disp, TestRunner& runner) {
     };
 
     while (!exitTest) {
-        // ── Phase A: sweep through tone list, 1 s each ─────────────────────
-        for (int i = 0; i < nSweep && !exitTest; i++) {
-            char l1[32];
-            snprintf(l1, sizeof(l1), "Tone: %s", sweepLabels[i]);
-            const char* lines[] = { "PA Amp: ON", l1,
+        // ── Phase A: sweep through tone list under a single screen ─────────
+        // We render the sweep page once and then play every frequency back
+        // to back. Re-rendering the EPD between tones takes ~10 s per refresh
+        // and stalls the audio, which defeats the point of a sweep.
+        {
+            const char* lines[] = { "PA Amp: ON",
+                                    "Sweep: 500 Hz - 4 kHz",
                                     "Phase: SWEEP",
                                     "AP=PASS  BOOT=FAIL" };
             disp.showTestScreen(4, "CODEC SWEEP+MELODY", lines, 4, nullptr, nullptr);
+        }
+        for (int i = 0; i < nSweep && !exitTest; i++) {
             T4_LOG("sweep freq=%.0fHz", sweepFreqs[i]);
             playTone(sweepFreqs[i], 1000, "sweep");
         }
