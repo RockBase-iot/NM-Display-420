@@ -23,9 +23,9 @@ SPIClass spiPeripheral(HSPI);
 // Button reads are gated on the EPD BUSY pin being LOW. This panel
 // (GDEY042Z98) drives BUSY HIGH while it is refreshing — and a full-window
 // refresh takes ~10–15 s, during which the MCU is blocking inside
-// firstPage()/nextPage(). If the operator presses AP/BOOT during that
+// firstPage()/nextPage(). If the operator presses USER/BOOT during that
 // window, the press is still active when control returns to the next
-// waitForAP()/waitForVerdict(), and the very first poll in those loops
+// waitForUser()/waitForVerdict(), and the very first poll in those loops
 // would consume it as a "new" press, putting the test sequence one step
 // ahead of the UI. Treating any sample taken while BUSY=HIGH as "not
 // pressed" makes that whole class of stale presses invisible.
@@ -53,7 +53,7 @@ static bool _btnPressedDebounced(uint8_t pin) {
     return true;
 }
 
-bool TestRunner::apPressed()   { return _btnPressedDebounced(PIN_AP_BTN);   }
+bool TestRunner::userPressed() { return _btnPressedDebounced(PIN_USER_BTN); }
 bool TestRunner::bootPressed() { return _btnPressedDebounced(PIN_BOOT_BTN); }
 
 // Raw (no BUSY-gate, no debounce) — only used for the release gate below
@@ -64,23 +64,23 @@ static bool _btnHeldRaw(uint8_t pin) { return digitalRead(pin) == LOW; }
 // pressed during a refresh and is still holding when BUSY falls — we want
 // the first "press" we report to be a fresh release→press edge.
 static void _waitAllReleased() {
-    while (_btnHeldRaw(PIN_AP_BTN) || _btnHeldRaw(PIN_BOOT_BTN)) delay(10);
+    while (_btnHeldRaw(PIN_USER_BTN) || _btnHeldRaw(PIN_BOOT_BTN)) delay(10);
     delay(30);  // mechanical/EMI settle after release
 }
 
-void TestRunner::waitForAP() {
+void TestRunner::waitForUser() {
     _waitAllReleased();
-    while (!apPressed()) { delay(10); }
+    while (!userPressed()) { delay(10); }
     delay(50);  // debounce
-    while (apPressed()) { delay(10); }  // wait for release
+    while (userPressed()) { delay(10); }  // wait for release
 }
 
 bool TestRunner::waitForVerdict() {
     _waitAllReleased();
     while (true) {
-        if (apPressed()) {
+        if (userPressed()) {
             delay(50);
-            while (apPressed()) { delay(10); }
+            while (userPressed()) { delay(10); }
             return true;
         }
         if (bootPressed()) {
@@ -104,7 +104,7 @@ void TestRunner::runT0() {
     digitalWrite(PIN_PA_CTRL, LOW);
 
     // 3. Button pins
-    pinMode(PIN_AP_BTN,   INPUT_PULLUP);
+    pinMode(PIN_USER_BTN, INPUT_PULLUP);
     pinMode(PIN_BOOT_BTN, INPUT_PULLUP);
 
     // 4. Init EPD and show welcome screen
@@ -122,11 +122,11 @@ void TestRunner::runT0() {
     Serial.print  ("[FACTORY TEST] Board: "); Serial.println(BOARD_NAME);
     Serial.print  ("[FACTORY TEST] FW: ");    Serial.println(FW_VERSION);
     Serial.println("[FACTORY TEST] T0 - System startup OK");
-    Serial.println("[FACTORY TEST] Waiting for AP key to start...");
+    Serial.println("[FACTORY TEST] Waiting for USER key to start...");
     Serial.println("========================================");
 
-    // 6. Wait for AP key press
-    waitForAP();
+    // 6. Wait for USER key press
+    waitForUser();
 
     Serial.println("[FACTORY TEST] T0 PASS - Starting test sequence");
 }
@@ -304,7 +304,7 @@ void TestRunner::runT10() {
 // ─── Main entry ───────────────────────────────────────────────────────────────
 
 void TestRunner::run() {
-    runT0();   // Init + welcome; advances only after AP key
+    runT0();   // Init + welcome; advances only after USER key
     _state = TestState::T1_EPD;  // kick off test sequence
 
     while (_state != TestState::DONE) {

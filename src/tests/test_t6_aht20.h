@@ -1,5 +1,5 @@
 #pragma once
-// T6 — AHT20 temperature & humidity sensor test
+// T6 鈥?AHT20 temperature & humidity sensor test
 //
 // Hardware:
 //   - AHT20 on shared I2C bus: SDA=GPIO39, SCL=GPIO38
@@ -11,7 +11,7 @@
 //   2. Init Adafruit_AHTX0
 //   3. Take 3 samples (1s apart), display min/max/avg
 //   4. Auto-PASS if all 3 reads succeed AND values are in plausible range,
-//      otherwise show data and ask operator (AP=PASS / BOOT=FAIL).
+//      otherwise show data and ask operator (USER=PASS / BOOT=FAIL).
 
 #include "test_runner.h"
 #include <Wire.h>
@@ -33,7 +33,7 @@ inline TestResult runTestT6(Display& disp, TestRunner& runner) {
     T6_LOG("AHT20 test started");
     T6_LOG("I2C SDA=%d SCL=%d  PWR=%d (HIGH)", PIN_I2C_SDA, PIN_I2C_SCL, PIN_TEMP_CTL);
 
-    // ── 0. Intro screen ─────────────────────────────────────────────────────
+    // 鈹€鈹€ 0. Intro screen 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
     // showTestScreen is a *blocking* full EPD refresh (~15 s). When it
     // returns, the panel is already showing this content. The following
     // delay keeps the intro on screen long enough for the operator to read
@@ -55,19 +55,19 @@ inline TestResult runTestT6(Display& disp, TestRunner& runner) {
     }
     delay(1500);  // hold intro visible
 
-    // ── 1. Power on sensor ───────────────────────────────────────────────────
+    // 鈹€鈹€ 1. Power on sensor 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
     pinMode(PIN_TEMP_CTL, OUTPUT);
     digitalWrite(PIN_TEMP_CTL, HIGH);
     delay(50);  // AHT20 needs ~40ms after power-on before first command
 
-    // ── 2. I2C bus + probe ───────────────────────────────────────────────────
+    // 鈹€鈹€ 2. I2C bus + probe 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
     Wire.begin(PIN_I2C_SDA, PIN_I2C_SCL);
     Wire.beginTransmission(AHT20_I2C_ADDR);
     bool i2cOk = (Wire.endTransmission() == 0);
     T6_LOG("I2C probe 0x%02X => %s", AHT20_I2C_ADDR, i2cOk ? "ACK" : "NAK");
 
     // NOTE: We deliberately do NOT render an intermediate "Reading sensor..."
-    // screen here — a full EPD refresh takes ~15s, longer than the whole
+    // screen here 鈥?a full EPD refresh takes ~15s, longer than the whole
     // sample loop (3s), and back-to-back full refreshes would overlap and
     // leave the previous frame on screen. We render the result ONCE at the
     // end. Progress is visible on the serial console.
@@ -81,12 +81,12 @@ inline TestResult runTestT6(Display& disp, TestRunner& runner) {
             "AHT20 not responding.",
             "Check power / wiring.",
         };
-        disp.showTestScreen(6, "AHT20 Sensor Test", lines, 5, "FAIL", "AP=Next");
-        runner.waitForAP();
+        disp.showTestScreen(6, "AHT20 Sensor Test", lines, 5, "FAIL", "USER=Next");
+        runner.waitForUser();
         return TestResult::FAIL;
     }
 
-    // ── 3. Init Adafruit driver ──────────────────────────────────────────────
+    // 鈹€鈹€ 3. Init Adafruit driver 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
     Adafruit_AHTX0 aht;
     bool drvOk = aht.begin(&Wire);
     T6_LOG("Adafruit_AHTX0.begin() => %s", drvOk ? "OK" : "FAIL");
@@ -98,12 +98,12 @@ inline TestResult runTestT6(Display& disp, TestRunner& runner) {
             "",
             "AHT20 calib failed.",
         };
-        disp.showTestScreen(6, "AHT20 Sensor Test", lines, 4, "FAIL", "AP=Next");
-        runner.waitForAP();
+        disp.showTestScreen(6, "AHT20 Sensor Test", lines, 4, "FAIL", "USER=Next");
+        runner.waitForUser();
         return TestResult::FAIL;
     }
 
-    // ── 4. Sample loop ───────────────────────────────────────────────────────
+    // 鈹€鈹€ 4. Sample loop 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
     // Sample continuously for at least T6_MIN_DURATION_MS, aggregating
     // min/max/avg. Holding the loop here also gives the EPD time to finish
     // the running-screen full refresh before we draw the result screen.
@@ -144,8 +144,8 @@ inline TestResult runTestT6(Display& disp, TestRunner& runner) {
             "",
             "Sensor not responding.",
         };
-        disp.showTestScreen(6, "AHT20 Sensor Test", lines, 4, "FAIL", "AP=Next");
-        runner.waitForAP();
+        disp.showTestScreen(6, "AHT20 Sensor Test", lines, 4, "FAIL", "USER=Next");
+        runner.waitForUser();
         return TestResult::FAIL;
     }
 
@@ -158,7 +158,7 @@ inline TestResult runTestT6(Display& disp, TestRunner& runner) {
     T6_LOG("Summary: ok=%d/%d  T avg=%.2fC (min=%.2f max=%.2f)  H avg=%.2f%% (min=%.2f max=%.2f)  inRange=%d",
            ok, total, tAvg, tMin, tMax, hAvg, hMin, hMax, (int)inRange);
 
-    // ── 5. Show result, ask operator ─────────────────────────────────────────
+    // 鈹€鈹€ 5. Show result, ask operator 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
     char l1[40], l2[48], l3[48], l4[40], l5[40];
     snprintf(l1, sizeof(l1), "Samples OK: %d / %d", ok, total);
     snprintf(l2, sizeof(l2), "Temp: %.2f C (min %.2f max %.2f)", tAvg, tMin, tMax);
@@ -170,18 +170,18 @@ inline TestResult runTestT6(Display& disp, TestRunner& runner) {
 
     if (autoPass) {
         disp.showTestScreen(6, "AHT20 Sensor Test", resultLines, 5,
-                            "PASS", "AP=Next");
+                            "PASS", "USER=Next");
         T6_LOG("PASS (auto)");
-        runner.waitForAP();
+        runner.waitForUser();
         return TestResult::PASS;
     }
 
     disp.showTestScreen(6, "AHT20 Sensor Test", resultLines, 5,
-                        nullptr, "AP=PASS  BOOT=FAIL");
+                        nullptr, "USER=PASS  BOOT=FAIL");
     T6_LOG("Manual verdict required");
     bool pass = runner.waitForVerdict();
     T6_LOG("Operator verdict: %s", pass ? "PASS" : "FAIL");
     disp.showTestScreen(6, "AHT20 Sensor Test", resultLines, 5,
-                        pass ? "PASS" : "FAIL", "AP=Next");
+                        pass ? "PASS" : "FAIL", "USER=Next");
     return pass ? TestResult::PASS : TestResult::FAIL;
 }

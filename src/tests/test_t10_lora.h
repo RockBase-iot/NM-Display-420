@@ -1,5 +1,5 @@
-#pragma once
-// T10 — LoRa SPI bus connectivity test
+﻿#pragma once
+// T10 鈥?LoRa SPI bus connectivity test
 // Shares FSPI with SD (CLK=9, MOSI=10, MISO=11), CS=GPIO8
 // RST=GPIO12, BUSY=GPIO13
 // Stub: full implementation in a future commit.
@@ -18,8 +18,8 @@ inline TestResult runTestT10(Display& disp, TestRunner& runner) {
     };
     disp.showTestScreen(10, "LoRa SPI Bus Test",
                         lines, 7,
-                        nullptr, "AP=Next");
+                        nullptr, "USER=Next");
 
-    runner.waitForAP();
+    runner.waitForUser();
     return TestResult::PASS;
 }

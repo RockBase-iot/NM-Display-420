@@ -1,5 +1,5 @@
-#pragma once
-// T4 — ES8311 CODEC test
+﻿#pragma once
+// T4 鈥?ES8311 CODEC test
 //   T4-A: I2C probe at 0x18 (auto pass/fail)
 //   T4-B: I2S 1kHz sine sweep playback via PA (human listen confirmation)
 //
@@ -71,7 +71,7 @@ static void _es8311_init_playback() {
     _es8311_write(0x00, 0x80);
     _es8311_write(0x01, 0x3F);
 
-    // MCLK=4.000MHz, FS=15.625kHz → LRCK_DIV=256
+    // MCLK=4.000MHz, FS=15.625kHz 鈫?LRCK_DIV=256
     _es8311_write(0x07, 0x00);
     _es8311_write(0x08, 0xFF);
     _es8311_write(0x06, 0x03);
@@ -163,10 +163,10 @@ inline TestResult runTestT4(Display& disp, TestRunner& runner) {
         const char* lines[] = { probe };
         disp.showTestScreen(4, "ES8311 CODEC", lines, 1,
                             i2cOk ? "PASS" : "FAIL",
-                            i2cOk ? "AP=Next" : "AP=Skip");
+                            i2cOk ? "USER=Next" : "USER=Skip");
     }
-    if (!i2cOk) { runner.waitForAP(); return TestResult::FAIL; }
-    runner.waitForAP();
+    if (!i2cOk) { runner.waitForUser(); return TestResult::FAIL; }
+    runner.waitForUser();
 
     bool i2sOk = _t4_i2s_init();
     T4_LOG("i2sOk=%d, waiting 50ms", (int)i2sOk);
@@ -180,21 +180,21 @@ inline TestResult runTestT4(Display& disp, TestRunner& runner) {
 
     if (!i2sOk) {
         const char* lerr[] = { "I2S init FAILED" };
-        disp.showTestScreen(4, "ES8311 CODEC-Play", lerr, 1, "FAIL", "AP=Next");
-        runner.waitForAP();
+        disp.showTestScreen(4, "ES8311 CODEC-Play", lerr, 1, "FAIL", "USER=Next");
+        runner.waitForUser();
         return TestResult::FAIL;
     }
 
-    T4_LOG("PLAY: sweep + 'Ode to Joy' melody, AP=PASS BOOT=FAIL");
+    T4_LOG("PLAY: sweep + 'Ode to Joy' melody, USER=PASS BOOT=FAIL");
 
-    // ── Sweep frequencies (2 s each, all played under one screen) ──────────
+    // 鈹€鈹€ Sweep frequencies (2 s each, all played under one screen) 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
     static const float sweepFreqs[] = { 500.0f, 1000.0f, 2000.0f,
                                         3000.0f, 4000.0f };
     constexpr int nSweep = sizeof(sweepFreqs) / sizeof(sweepFreqs[0]);
 
-    // ── Beethoven "Ode to Joy" (Symphony No.9, mvt.4 main theme) ───────────
-    // Key of C major. q ≈ 100 BPM (quarter = 300 ms). Two 8-bar phrases
-    // ≈ 19.2 s total — fits the 20 s window cleanly with no looping.
+    // 鈹€鈹€ Beethoven "Ode to Joy" (Symphony No.9, mvt.4 main theme) 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+    // Key of C major. q 鈮?100 BPM (quarter = 300 ms). Two 8-bar phrases
+    // 鈮?19.2 s total 鈥?fits the 20 s window cleanly with no looping.
     // Tones used: C4 D4 E4 F4 G4. No half-tones, easy to recognise globally.
     struct T4Note { float freq; uint16_t ms; };
     constexpr float NOTE_C  = 261.63f;
@@ -229,7 +229,7 @@ inline TestResult runTestT4(Display& disp, TestRunner& runner) {
     static uint32_t phase = 0;
 
     // Inline tone generator: plays `freq` for `durMs` ms (freq=0 -> silence).
-    // Polls AP/BOOT each chunk so we can break out promptly.
+    // Polls USER/BOOT each chunk so we can break out promptly.
     auto playTone = [&](float freq, uint32_t durMs, const char* tag) {
         uint64_t total64 = (uint64_t)T4_SAMPLE_RATE * (uint64_t)durMs / 1000ULL;
         uint32_t total   = (uint32_t)total64;
@@ -267,8 +267,8 @@ inline TestResult runTestT4(Display& disp, TestRunner& runner) {
             size_t bw = 0;
             i2s_channel_write(_t4_tx_handle, buf, chunk * 4, &bw, portMAX_DELAY);
             written += chunk;
-            if (digitalRead(PIN_AP_BTN) == LOW) {
-                delay(50); while (digitalRead(PIN_AP_BTN) == LOW) {}
+            if (digitalRead(PIN_USER_BTN) == LOW) {
+                delay(50); while (digitalRead(PIN_USER_BTN) == LOW) {}
                 exitTest = true; verdict = true;
             } else if (digitalRead(PIN_BOOT_BTN) == LOW) {
                 delay(50); while (digitalRead(PIN_BOOT_BTN) == LOW) {}
@@ -277,13 +277,13 @@ inline TestResult runTestT4(Display& disp, TestRunner& runner) {
         }
         // Reset oscillator phase between notes so the next note's attack
         // ramp starts at sin(0) = 0 and the falling edge of the release
-        // ramp also lands near 0 — keeps the join free of DC steps.
+        // ramp also lands near 0 鈥?keeps the join free of DC steps.
         phase = 0;
         (void)tag;
     };
 
     while (!exitTest) {
-        // ── Phase A: sweep through tone list under a single screen ─────────
+        // 鈹€鈹€ Phase A: sweep through tone list under a single screen 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
         // We render the sweep page once and then play every frequency back
         // to back. Re-rendering the EPD between tones takes ~10 s per refresh
         // and stalls the audio, which defeats the point of a sweep.
@@ -291,7 +291,7 @@ inline TestResult runTestT4(Display& disp, TestRunner& runner) {
             const char* lines[] = { "PA Amp: ON",
                                     "Sweep: 500 Hz - 4 kHz",
                                     "Phase: SWEEP",
-                                    "AP=PASS  BOOT=FAIL" };
+                                    "USER=PASS  BOOT=FAIL" };
             disp.showTestScreen(4, "CODEC SWEEP+MELODY", lines, 4, nullptr, nullptr);
         }
         for (int i = 0; i < nSweep && !exitTest; i++) {
@@ -299,12 +299,12 @@ inline TestResult runTestT4(Display& disp, TestRunner& runner) {
             playTone(sweepFreqs[i], 1000, "sweep");
         }
 
-        // ── Phase B: 'Ode to Joy' for 20 s ─────────────────────────────────
+        // 鈹€鈹€ Phase B: 'Ode to Joy' for 20 s 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
         {
             const char* lines[] = { "PA Amp: ON",
                                     "Tune: Ode to Joy",
                                     "Phase: MELODY (20s)",
-                                    "AP=PASS  BOOT=FAIL" };
+                                    "USER=PASS  BOOT=FAIL" };
             disp.showTestScreen(4, "CODEC SWEEP+MELODY", lines, 4, nullptr, nullptr);
             T4_LOG("ode-to-joy melody start");
             uint32_t t0 = millis();

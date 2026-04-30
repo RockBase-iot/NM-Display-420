@@ -1,10 +1,10 @@
-#pragma once
-// T2 — WS2812 RGB LED test
+﻿#pragma once
+// T2 鈥?WS2812 RGB LED test
 
 #include "test_runner.h"
 #include <Adafruit_NeoPixel.h>
 
-// ─── T2 implementation ────────────────────────────────────────────────────────
+// 鈹€鈹€鈹€ T2 implementation 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 inline TestResult runTestT2(Display& disp, TestRunner& runner) {
     Serial.println("[T2] WS2812 RGB LED Test started");
     Serial.println("[T2] GPIO47  Count:1");
@@ -13,13 +13,13 @@ inline TestResult runTestT2(Display& disp, TestRunner& runner) {
     pinMode(PIN_LED, OUTPUT);
     digitalWrite(PIN_LED, LOW);
 
-    // ── Init NeoPixel ─────────────────────────────────────────────────────────
+    // 鈹€鈹€ Init NeoPixel 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
     Adafruit_NeoPixel strip(WS2812_COUNT, PIN_LED, NEO_GRB + NEO_KHZ800);
     strip.begin();
     strip.setBrightness(255);  // full brightness for diagnostics
     strip.show();  // all off
 
-    // ── Color sequence ────────────────────────────────────────────────────────
+    // 鈹€鈹€ Color sequence 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
     struct ColorEntry { const char* name; uint32_t color; };
     static const ColorEntry COLORS[] = {
         { "RED",   Adafruit_NeoPixel::Color(255,   0,   0) },
@@ -30,7 +30,7 @@ inline TestResult runTestT2(Display& disp, TestRunner& runner) {
     constexpr uint8_t NUM_COLORS = sizeof(COLORS) / sizeof(COLORS[0]);
     constexpr uint32_t COLOR_DURATION_MS = 1000;
 
-    // ── Show EPD cycling screen ─────────────────────────────────
+    // 鈹€鈹€ Show EPD cycling screen 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
     static const char* infoLines[] = {
         "LED: GPIO47  Count: 1",
         "Sequence: RED > GREEN > BLUE > WHITE",
@@ -42,7 +42,7 @@ inline TestResult runTestT2(Display& disp, TestRunner& runner) {
                         infoLines, 5,
                         nullptr, nullptr);
 
-    // ── Cycle colors ──────────────────────────────────────────────────────────
+    // 鈹€鈹€ Cycle colors 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
     for (uint8_t i = 0; i < NUM_COLORS; i++) {
         Serial.print("[T2] LED -> ");
         Serial.println(COLORS[i].name);
@@ -56,7 +56,7 @@ inline TestResult runTestT2(Display& disp, TestRunner& runner) {
     strip.show();
     Serial.println("[T2] LED OFF");
 
-    // ── Verdict prompt ────────────────────────────────────────────────────────
+    // 鈹€鈹€ Verdict prompt 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
     static const char* verdictLines[] = {
         "LED cycled: RED > GREEN > BLUE > WHITE",
         "",
@@ -64,9 +64,9 @@ inline TestResult runTestT2(Display& disp, TestRunner& runner) {
     };
     disp.showTestScreen(2, "WS2812 RGB LED Test",
                         verdictLines, 3,
-                        nullptr, "AP=PASS   BOOT=FAIL");
+                        nullptr, "USER=PASS   BOOT=FAIL");
 
-    Serial.println("[T2] AP=PASS  BOOT=FAIL");
+    Serial.println("[T2] USER=PASS  BOOT=FAIL");
     bool pass = runner.waitForVerdict();
 
     if (pass) {
@@ -74,10 +74,10 @@ inline TestResult runTestT2(Display& disp, TestRunner& runner) {
         return TestResult::PASS;
     } else {
         Serial.println("[T2] FAIL - operator rejected LED colors");
-        static const char* failLines[] = { "LED color check failed.", "Press AP button to continue." };
+        static const char* failLines[] = { "LED color check failed.", "Press USER button to continue." };
         disp.showTestScreen(2, "WS2812 RGB LED Test",
-                            failLines, 2, "FAIL", "AP=Next");
-        runner.waitForAP();
+                            failLines, 2, "FAIL", "USER=Next");
+        runner.waitForUser();
         return TestResult::FAIL;
     }
 }

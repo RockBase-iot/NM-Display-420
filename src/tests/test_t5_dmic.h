@@ -7,7 +7,7 @@
 //   3. Show RMS / peak.
 //   4. Tear down RX, init I2S TX + ES8311 DAC, raise PA_CTRL.
 //   5. Play back the recorded buffer (mono -> stereo).
-//   6. Lower PA_CTRL, free buffer, wait for AP/BOOT verdict.
+//   6. Lower PA_CTRL, free buffer, wait for USER/BOOT verdict.
 //
 // Path: LMD4737 (PDM) -> ES8311 DMIC -> PCM -> I2S DIN (GPIO16).
 //       Playback: ESP I2S DOUT (GPIO18) -> ES8311 DAC -> NS4150B PA -> speaker.
@@ -261,8 +261,8 @@ inline TestResult runTestT5(Display& disp, TestRunner& runner) {
     T5_LOG("I2C probe 0x18 ok=%d", (int)i2cOk);
     if (!i2cOk) {
         const char* lines[] = { "I2C probe(0x18) FAIL" };
-        disp.showTestScreen(5, "DMIC Record+Playback", lines, 1, "FAIL", "AP=Next");
-        runner.waitForAP();
+        disp.showTestScreen(5, "DMIC Record+Playback", lines, 1, "FAIL", "USER=Next");
+        runner.waitForUser();
         return TestResult::FAIL;
     }
 
@@ -277,13 +277,13 @@ inline TestResult runTestT5(Display& disp, TestRunner& runner) {
     T5_LOG("alloc monoBuf=%p bytes=%u", monoBuf, (unsigned)bufBytes);
     if (!monoBuf) {
         const char* lines[] = { "Out of memory", "Need PSRAM enabled" };
-        disp.showTestScreen(5, "DMIC Record+Playback", lines, 2, "FAIL", "AP=Next");
-        runner.waitForAP();
+        disp.showTestScreen(5, "DMIC Record+Playback", lines, 2, "FAIL", "USER=Next");
+        runner.waitForUser();
         return TestResult::FAIL;
     }
 
     // --- Phase 1: Record ----------------------------------------------------
-    // [DEBUG] Loop record+playback until operator confirms PASS (AP).
+    // [DEBUG] Loop record+playback until operator confirms PASS (USER).
     //         Pressing BOOT on the verdict screen retries the cycle.
     bool verdict = false;
     uint32_t attempt = 0;
@@ -294,8 +294,8 @@ inline TestResult runTestT5(Display& disp, TestRunner& runner) {
     if (!_t5_i2s_init_rx()) {
         free(monoBuf);
         const char* lines[] = { "I2S RX init FAILED" };
-        disp.showTestScreen(5, "DMIC Record+Playback", lines, 1, "FAIL", "AP=Next");
-        runner.waitForAP();
+        disp.showTestScreen(5, "DMIC Record+Playback", lines, 1, "FAIL", "USER=Next");
+        runner.waitForUser();
         return TestResult::FAIL;
     }
     delay(50);
@@ -404,8 +404,8 @@ inline TestResult runTestT5(Display& disp, TestRunner& runner) {
     if (!_t5_i2s_init_tx()) {
         free(monoBuf);
         const char* lines[] = { "I2S TX init FAILED" };
-        disp.showTestScreen(5, "DMIC Playback", lines, 1, "FAIL", "AP=Next");
-        runner.waitForAP();
+        disp.showTestScreen(5, "DMIC Playback", lines, 1, "FAIL", "USER=Next");
+        runner.waitForUser();
         return TestResult::FAIL;
     }
     delay(50);
@@ -468,13 +468,13 @@ inline TestResult runTestT5(Display& disp, TestRunner& runner) {
                  (unsigned)rms, (unsigned)DMIC_RMS_THRESHOLD_VOICE);
         snprintf(l2, sizeof(l2), "Peak=%d  Samples=%u",
                  (int)peak, (unsigned)recorded);
-        snprintf(l3, sizeof(l3), "AP=PASS  BOOT=retry");
+        snprintf(l3, sizeof(l3), "USER=PASS  BOOT=retry");
         const char* lines[] = { "Did you hear yourself?",
                                 l0, l1, l2, "",
                                 l3 };
         disp.showTestScreen(5, "DMIC Result", lines, 6,
                             autoPass ? "PASS" : "FAIL",
-                            "AP/BOOT");
+                            "USER/BOOT");
     }
     verdict = runner.waitForVerdict();
     T5_LOG("verdict=%s rms=%u (attempt=%u)",

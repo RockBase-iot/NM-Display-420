@@ -1,7 +1,7 @@
 #pragma once
 
 // ─── Firmware version ────────────────────────────────────────────────────────
-#define FW_VERSION  "v1.3.10"
+#define FW_VERSION  "v1.3.11"
 #define BOARD_NAME  "NM Display 4.2 Inch"
 
 // ─── EPD (SPI0 / VSPI) ───────────────────────────────────────────────────────
@@ -43,8 +43,8 @@
 
 // ─── GPIO ────────────────────────────────────────────────────────────────────
 #define PIN_PA_CTRL   41   // External amplifier enable (HIGH = on)
-#define PIN_BOOT_BTN  0    // BOOT key, external pull-up, pressed = LOW (RTC GPIO)
-#define PIN_AP_BTN    45   // AP key,   external pull-up, pressed = LOW
+#define PIN_BOOT_BTN   0   // BOOT key, external pull-up, pressed = LOW (RTC GPIO)
+#define PIN_USER_BTN  45   // USER key, external pull-up, pressed = LOW
 #define PIN_LED       47   // WS2812 data pin (RMT / NeoPixel driver)
 
 // ─── WS2812 ──────────────────────────────────────────────────────────────────

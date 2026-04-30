@@ -1,5 +1,5 @@
-#pragma once
-// T7 — Battery ADC (placeholder — HW not populated on current board)
+﻿#pragma once
+// T7 鈥?Battery ADC (placeholder 鈥?HW not populated on current board)
 
 #include "test_runner.h"
 #include "config.h"
@@ -11,8 +11,8 @@ inline TestResult runTestT7(Display& disp, TestRunner& runner) {
     };
     disp.showTestScreen(7, "Battery ADC",
                         lines, 2,
-                        "SKIP", "AP=Next");
+                        "SKIP", "USER=Next");
 
-    runner.waitForAP();
+    runner.waitForUser();
     return TestResult::SKIP;
 }

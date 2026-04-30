@@ -1,5 +1,5 @@
-#pragma once
-// T3 — Button test (AP key GPIO45, BOOT key GPIO0)
+﻿#pragma once
+// T3 鈥?Button test (USER key GPIO45, BOOT key GPIO0)
 
 #include "test_runner.h"
 
@@ -21,32 +21,32 @@ static bool _t3_waitButton(bool (*isPressed)(), uint32_t timeoutMs) {
 
 inline TestResult runTestT3(Display& disp, TestRunner& runner) {
     Serial.println("[T3] Button Test started");
-    Serial.println("[T3] AP=GPIO45  BOOT=GPIO0  timeout=10s each");
+    Serial.println("[T3] USER=GPIO45  BOOT=GPIO0  timeout=10s each");
 
     bool apOk   = false;
     bool bootOk = false;
 
-    // ── Phase 1: AP key ───────────────────────────────────────────────────────
+    // 鈹€鈹€ Phase 1: USER key 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
     {
         const char* lines[] = {
             "Test each button when prompted.",
             "",
-            ">>> Press AP key (GPIO45) now <<<",
+            ">>> Press USER key (GPIO45) now <<<",
             "",
             "BOOT key: [ waiting ]",
         };
         disp.showTestScreen(3, "Button Test", lines, 5, nullptr, nullptr);
-        Serial.println("[T3] Waiting for AP key...");
+        Serial.println("[T3] Waiting for USER key...");
 
-        apOk = _t3_waitButton(TestRunner::apPressed, T3_TIMEOUT_MS);
-        Serial.print("[T3] AP key: ");
+        apOk = _t3_waitButton(TestRunner::userPressed, T3_TIMEOUT_MS);
+        Serial.print("[T3] USER key: ");
         Serial.println(apOk ? "OK" : "TIMEOUT");
     }
 
-    // ── Phase 2: BOOT key ─────────────────────────────────────────────────────
+    // 鈹€鈹€ Phase 2: BOOT key 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
     {
         char apStatus[32];
-        snprintf(apStatus, sizeof(apStatus), "AP   key (GPIO45): [%s]", apOk ? " OK  " : "FAIL ");
+        snprintf(apStatus, sizeof(apStatus), "USER key (GPIO45): [%s]", apOk ? " OK  " : "FAIL ");
         const char* lines[] = {
             apStatus,
             "",
@@ -60,18 +60,18 @@ inline TestResult runTestT3(Display& disp, TestRunner& runner) {
         Serial.println(bootOk ? "OK" : "TIMEOUT");
     }
 
-    // ── Result ────────────────────────────────────────────────────────────────
+    // 鈹€鈹€ Result 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
     bool pass = apOk && bootOk;
 
     char apLine[32], bootLine[32];
-    snprintf(apLine,   sizeof(apLine),   "AP   key (GPIO45): [%s]", apOk   ? " OK  " : "FAIL ");
+    snprintf(apLine,   sizeof(apLine),   "USER key (GPIO45): [%s]", apOk   ? " OK  " : "FAIL ");
     snprintf(bootLine, sizeof(bootLine), "BOOT key (GPIO0):  [%s]", bootOk ? " OK  " : "FAIL ");
     const char* resultLines[] = { apLine, bootLine };
 
     disp.showTestScreen(3, "Button Test",
                         resultLines, 2,
                         pass ? "PASS" : "FAIL",
-                        "AP=Next");
+                        "USER=Next");
 
     if (pass) {
         Serial.println("[T3] PASS");
@@ -79,6 +79,6 @@ inline TestResult runTestT3(Display& disp, TestRunner& runner) {
         Serial.println("[T3] FAIL - one or more buttons timed out");
     }
 
-    runner.waitForAP();
+    runner.waitForUser();
     return pass ? TestResult::PASS : TestResult::FAIL;
 }

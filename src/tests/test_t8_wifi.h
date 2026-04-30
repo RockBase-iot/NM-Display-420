@@ -1,5 +1,5 @@
-#pragma once
-// T8 — WiFi scan test
+﻿#pragma once
+// T8 鈥?WiFi scan test
 //
 // Procedure:
 //   1. Set WiFi to STA mode (no connect).
@@ -38,7 +38,7 @@ static const char* _t8_authStr(wifi_auth_mode_t a) {
 inline TestResult runTestT8(Display& disp, TestRunner& runner) {
     T8_LOG("WiFi scan test started");
 
-    // ── Intro screen (scan can take ~3-8s, paint *before* we block) ─────────
+    // 鈹€鈹€ Intro screen (scan can take ~3-8s, paint *before* we block) 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
     {
         const char* introLines[] = {
             "WiFi mode: STA",
@@ -58,7 +58,7 @@ inline TestResult runTestT8(Display& disp, TestRunner& runner) {
 
     T8_LOG("Scanning... (this can take ~3-8s)");
     uint32_t t0 = millis();
-    // scanNetworks(async=false, show_hidden=false) — blocks until done
+    // scanNetworks(async=false, show_hidden=false) 鈥?blocks until done
     int n = WiFi.scanNetworks(false, false);
     uint32_t dt = millis() - t0;
     T8_LOG("scanNetworks returned %d in %lums", n, (unsigned long)dt);
@@ -68,9 +68,9 @@ inline TestResult runTestT8(Display& disp, TestRunner& runner) {
             "WiFi.scanNetworks() FAILED",
             "Radio init or RF problem.",
         };
-        disp.showTestScreen(8, "WiFi Scan Test", lines, 2, "FAIL", "AP=Next");
+        disp.showTestScreen(8, "WiFi Scan Test", lines, 2, "FAIL", "USER=Next");
         WiFi.mode(WIFI_OFF);
-        runner.waitForAP();
+        runner.waitForUser();
         return TestResult::FAIL;
     }
 
@@ -112,18 +112,18 @@ inline TestResult runTestT8(Display& disp, TestRunner& runner) {
 
     if (autoPass) {
         disp.showTestScreen(8, "WiFi Scan Test", lines, lineCount,
-                            "PASS", "AP=Next",
+                            "PASS", "USER=Next",
                             /*linesLeftAlignedBlock=*/true,
                             /*monospaceStartLine=*/1);
         T8_LOG("PASS (auto, n=%d)", n);
         WiFi.mode(WIFI_OFF);
-        runner.waitForAP();
+        runner.waitForUser();
         return TestResult::PASS;
     }
 
-    // No APs found — could be a shielded room, ask operator.
+    // No APs found 鈥?could be a shielded room, ask operator.
     disp.showTestScreen(8, "WiFi Scan Test", lines, lineCount,
-                        nullptr, "AP=PASS  BOOT=FAIL",
+                        nullptr, "USER=PASS  BOOT=FAIL",
                         /*linesLeftAlignedBlock=*/true,
                         /*monospaceStartLine=*/1);
     T8_LOG("No AP found, manual verdict required");
@@ -131,7 +131,7 @@ inline TestResult runTestT8(Display& disp, TestRunner& runner) {
     T8_LOG("Operator verdict: %s", pass ? "PASS" : "FAIL");
 
     disp.showTestScreen(8, "WiFi Scan Test", lines, lineCount,
-                        pass ? "PASS" : "FAIL", "AP=Next",
+                        pass ? "PASS" : "FAIL", "USER=Next",
                         /*linesLeftAlignedBlock=*/true,
                         /*monospaceStartLine=*/1);
 

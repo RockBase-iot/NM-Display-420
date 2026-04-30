@@ -4,7 +4,7 @@ ESP32-S3 based 4.2-inch E-ink display board — **factory test firmware**.
 
 This firmware exercises every on-board peripheral in a fixed sequence (T0…T11),
 shows a result page on the EPD for every step, and lets the operator confirm /
-reject each step with the **AP** and **BOOT** buttons. At the end a one-page
+reject each step with the **USER** and **BOOT** buttons. At the end a one-page
 summary screen lists every test as PASS / FAIL / SKIP.
 
 > 中文版本: [README_cn.md](README_cn.md)
@@ -15,7 +15,7 @@ summary screen lists every test as PASS / FAIL / SKIP.
 
 * Boots the board, initialises every peripheral driver
 * Runs 10 hardware tests one after another, blocking between tests for an
-  operator verdict (`AP = OK/PASS`, `BOOT = FAIL`)
+  operator verdict (`USER = OK/PASS`, `BOOT = FAIL`)
 * Renders a dedicated screen for every test on the 3-color (B/W/R) e-paper
   panel
 * Plays audio tones and a recognisable melody (Beethoven *Ode to Joy*) through
@@ -34,10 +34,10 @@ summary screen lists every test as PASS / FAIL / SKIP.
 
 | Test | Item            | Description                                  | Screen |
 |------|-----------------|----------------------------------------------|--------|
-| T0   | System startup  | Serial / EPD init, welcome screen, wait AP   | ![T0](image/T0.png) |
+| T0   | System startup  | Serial / EPD init, welcome screen, wait USER | ![T0](image/T0.png) |
 | T1   | EPD display     | White / Black / Red fill + text demo         | — |
 | T2   | WS2812 RGB LED  | RED → GREEN → BLUE → WHITE cycle             | ![T2](image/T2.png) |
-| T3   | Buttons         | AP key and BOOT key press detection          | — |
+| T3   | Buttons         | USER key and BOOT key press detection          | — |
 | T4   | ES8311 codec    | Sweep 500/1k/2k/3k Hz + *Ode to Joy* melody  | ![T4](image/T4.png) |
 | T5   | DMIC mic        | Voice record + speaker loopback + RMS check  | ![T5](image/T5.png) |
 | T6   | AHT20 sensor    | Temperature & humidity over I²C              | ![T6](image/T6.png) |
@@ -56,7 +56,7 @@ A complete run typically takes ~3 min, dominated by EPD full-refresh time
 
 ```
                   ┌───────────────────────────┐
-   power on  ───► │  T0  Welcome              │  press AP
+   power on  ───► │  T0  Welcome              │  press USER
                   └───────────────────────────┘
                              │
                              ▼
@@ -65,7 +65,7 @@ A complete run typically takes ~3 min, dominated by EPD full-refresh time
                   │  for each test:           │
                   │    show screen            │
                   │    run hardware           │
-                  │    AP   = PASS / OK       │
+                  │    USER = PASS / OK       │
                   │    BOOT = FAIL            │
                   └───────────────────────────┘
                              │
@@ -98,7 +98,7 @@ press during a refresh cannot be consumed as a verdict for the next test.
               └──────────────┘    └──────────┘            └────────┘
 
   ┌────────┐  ┌────────┐  ┌────────┐  ┌──────────────┐
-  │  AP    │  │  BOOT  │  │ WS2812 │  │ Battery ADC  │
+  │  USER  │  │  BOOT  │  │ WS2812 │  │ Battery ADC  │
   │ button │  │ button │  │  LED   │  │  (optional)  │
   └────────┘  └────────┘  └────────┘  └──────────────┘
 ```
@@ -115,7 +115,7 @@ press during a refresh cannot be consumed as a verdict for the next test.
 | RGB LED      | **WS2812**                    | RMT             | 1 pixel                            |
 | SD card      | µSD                           | SPI (HSPI)      | Shared bus with LoRa               |
 | LoRa modem   | **SX126x** family             | SPI (HSPI)      | CS / RST / BUSY GPIOs              |
-| Buttons      | AP, BOOT                      | GPIO            | Active LOW, external pull-up       |
+| Buttons      | USER, BOOT                      | GPIO            | Active LOW, external pull-up       |
 | Audio amp    | External Class-D              | EN GPIO         | Enabled by `PIN_PA_CTRL` HIGH      |
 
 ### 4.3 ESP32-S3 GPIO map
@@ -146,7 +146,7 @@ press during a refresh cannot be consumed as a verdict for the next test.
 |              | SCL              | 38   | OUT       |                                         |
 |              | TEMP_CTL         | 40   | OUT       | AHT20 power gate (HIGH = on)            |
 | Audio        | PA_CTRL          | 41   | OUT       | External amplifier enable               |
-| User I/O     | AP button        | 45   | IN        | Active LOW, external pull-up            |
+| User I/O     | USER button        | 45   | IN        | Active LOW, external pull-up            |
 |              | BOOT button      | 0    | IN        | Active LOW, RTC GPIO, external pull-up  |
 |              | WS2812 data      | 47   | OUT       | RMT                                     |
 

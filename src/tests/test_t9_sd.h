@@ -1,5 +1,5 @@
-#pragma once
-// T9 — SD card R/W test
+﻿#pragma once
+// T9 鈥?SD card R/W test
 //
 // Bus:
 //   FSPI shared with LoRa (SX12xx). For SD-only access we drive LoRa CS
@@ -27,7 +27,7 @@
 #define T9_TEST_PATH       "/T9_TEST.BIN"
 #define T9_TEST_BYTES      (512u * 1024u)   // 512 KiB
 #define T9_BLOCK_BYTES     4096u            // 4 KiB chunks
-#define T9_SPI_HZ          40000000u        // 40 MHz — practical max for the
+#define T9_SPI_HZ          40000000u        // 40 MHz 鈥?practical max for the
                                             // Arduino-ESP32 SD (SPI mode) driver.
                                             // SD spec allows up to 25 MHz in
                                             // "default speed" SPI mode, but the
@@ -51,7 +51,7 @@ inline TestResult runTestT9(Display& disp, TestRunner& runner) {
     T9_LOG("FSPI: SCK=%d MISO=%d MOSI=%d  SD_CS=%d  LoRa_NSS=%d",
            PIN_SD_CLK, PIN_SD_MISO, PIN_SD_MOSI, PIN_SD_CS, PIN_LORA_NSS);
 
-    // ── Intro screen (init + 512 KiB R/W bench can take a few seconds) ─────
+    // 鈹€鈹€ Intro screen (init + 512 KiB R/W bench can take a few seconds) 鈹€鈹€鈹€鈹€鈹€
     {
         const char* introLines[] = {
             "HSPI: CLK=9 MOSI=10 MISO=11",
@@ -65,11 +65,11 @@ inline TestResult runTestT9(Display& disp, TestRunner& runner) {
                             nullptr, "Please wait...");
     }
 
-    // ── 1. Park LoRa CS high so it ignores the bus ───────────────────────────
+    // 鈹€鈹€ 1. Park LoRa CS high so it ignores the bus 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
     pinMode(PIN_LORA_NSS, OUTPUT);
     digitalWrite(PIN_LORA_NSS, HIGH);
 
-    // ── 2. SD init on the dedicated peripheral SPI bus (HSPI) ────────────────
+    // 鈹€鈹€ 2. SD init on the dedicated peripheral SPI bus (HSPI) 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
     // spiPeripheral is initialised once in TestRunner::runT0(). The EPD bus
     // (default SPI / FSPI) is untouched, so screen drawing keeps working
     // before, during and after this test.
@@ -93,8 +93,8 @@ inline TestResult runTestT9(Display& disp, TestRunner& runner) {
             "SD.begin() FAIL.",
             "Check card / wiring.",
         };
-        disp.showTestScreen(9, "SD Card R/W Test", lines, 5, "FAIL", "AP=Next");
-        runner.waitForAP();
+        disp.showTestScreen(9, "SD Card R/W Test", lines, 5, "FAIL", "USER=Next");
+        runner.waitForUser();
         return TestResult::FAIL;
     }
 
@@ -109,19 +109,19 @@ inline TestResult runTestT9(Display& disp, TestRunner& runner) {
             "SD.begin OK but type=NONE",
             "Card not detected.",
         };
-        disp.showTestScreen(9, "SD Card R/W Test", lines, 2, "FAIL", "AP=Next");
+        disp.showTestScreen(9, "SD Card R/W Test", lines, 2, "FAIL", "USER=Next");
         SD.end();
-        runner.waitForAP();
+        runner.waitForUser();
         return TestResult::FAIL;
     }
 
-    // ── 3. Prepare a static buffer with a recognizable pattern ───────────────
+    // 鈹€鈹€ 3. Prepare a static buffer with a recognizable pattern 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
     static uint8_t buf[T9_BLOCK_BYTES];
     for (uint32_t i = 0; i < T9_BLOCK_BYTES; i++) {
         buf[i] = (uint8_t)(i ^ (i >> 8));
     }
 
-    // ── 4. Write benchmark ───────────────────────────────────────────────────
+    // 鈹€鈹€ 4. Write benchmark 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
     if (SD.exists(T9_TEST_PATH)) SD.remove(T9_TEST_PATH);
     File f = SD.open(T9_TEST_PATH, FILE_WRITE);
     if (!f) {
@@ -129,9 +129,9 @@ inline TestResult runTestT9(Display& disp, TestRunner& runner) {
             "SD mounted OK.",
             "open(WRITE) FAIL.",
         };
-        disp.showTestScreen(9, "SD Card R/W Test", lines, 2, "FAIL", "AP=Next");
+        disp.showTestScreen(9, "SD Card R/W Test", lines, 2, "FAIL", "USER=Next");
         SD.end();
-        runner.waitForAP();
+        runner.waitForUser();
         return TestResult::FAIL;
     }
 
@@ -153,7 +153,7 @@ inline TestResult runTestT9(Display& disp, TestRunner& runner) {
 
     bool writeOk = (written == T9_TEST_BYTES);
 
-    // ── 5. Read back + verify ────────────────────────────────────────────────
+    // 鈹€鈹€ 5. Read back + verify 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
     static uint8_t rbuf[T9_BLOCK_BYTES];
     bool readOk   = false;
     bool verifyOk = false;
@@ -187,10 +187,10 @@ inline TestResult runTestT9(Display& disp, TestRunner& runner) {
                verifyOk ? "OK" : "FAIL");
     }
 
-    // ── 6. Cleanup ───────────────────────────────────────────────────────────
+    // 鈹€鈹€ 6. Cleanup 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
     SD.remove(T9_TEST_PATH);
     SD.end();
-    // Note: spiPeripheral (HSPI) stays initialised — T10 (LoRa) will reuse it.
+    // Note: spiPeripheral (HSPI) stays initialised 鈥?T10 (LoRa) will reuse it.
     // EPD's default SPI bus (FSPI) is on a separate controller and pins, so
     // it does not need to be touched here.
 
@@ -213,23 +213,23 @@ inline TestResult runTestT9(Display& disp, TestRunner& runner) {
 
     if (autoPass) {
         disp.showTestScreen(9, "SD Card R/W Test", lines, 5,
-                            "PASS", "AP=Next",
+                            "PASS", "USER=Next",
                             /*linesLeftAlignedBlock=*/true,
                             /*monospaceStartLine=*/0);
         T9_LOG("PASS (auto)");
-        runner.waitForAP();
+        runner.waitForUser();
         return TestResult::PASS;
     }
 
     disp.showTestScreen(9, "SD Card R/W Test", lines, 5,
-                        nullptr, "AP=PASS  BOOT=FAIL",
+                        nullptr, "USER=PASS  BOOT=FAIL",
                         /*linesLeftAlignedBlock=*/true,
                         /*monospaceStartLine=*/0);
     T9_LOG("Manual verdict required");
     bool pass = runner.waitForVerdict();
     T9_LOG("Operator verdict: %s", pass ? "PASS" : "FAIL");
     disp.showTestScreen(9, "SD Card R/W Test", lines, 5,
-                        pass ? "PASS" : "FAIL", "AP=Next",
+                        pass ? "PASS" : "FAIL", "USER=Next",
                         /*linesLeftAlignedBlock=*/true,
                         /*monospaceStartLine=*/0);
     return pass ? TestResult::PASS : TestResult::FAIL;

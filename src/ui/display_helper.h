@@ -67,7 +67,7 @@ public:
 
             // Instructions — centered
             _epd.setFont(&FreeSansBold9pt7b);
-            _printCentered("Press AP button to Start", 170);
+            _printCentered("Press USER button to Start", 170);
 
         } while (_epd.nextPage());
     }
@@ -79,7 +79,7 @@ public:
     //   lines[]   : up to MAX_LINES content lines (nullptr entries are skipped)
     //   lineCount : number of entries in lines[]
     //   result    : "PASS" | "FAIL" | "SKIP" | nullptr
-    //   prompt    : e.g. "AP=Next" | "AP=PASS  BOOT=FAIL" | nullptr
+    //   prompt    : e.g. "USER=Next" | "USER=PASS  BOOT=FAIL" | nullptr
 
     static constexpr uint8_t MAX_LINES = 10;
 
@@ -114,7 +114,7 @@ public:
     // Show final result + prompt after a test completes
     void showTestResult(uint8_t testNum, const char* title,
                         const char* const lines[], uint8_t lineCount,
-                        bool pass, const char* prompt = "AP=Next")
+                        bool pass, const char* prompt = "USER=Next")
     {
         showTestScreen(testNum, title, lines, lineCount,
                        pass ? "PASS" : "FAIL", prompt);

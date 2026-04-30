@@ -36,14 +36,14 @@ public:
     void run();
 
     // ── Button helpers (public for use from test files) ──────────────────────
-    static bool apPressed();
+    static bool userPressed();
     static bool bootPressed();
 
-    // ── Block until AP key is pressed (used by auto-pass tests) ─────────────
-    static void waitForAP();
+    // ── Block until USER key is pressed (used by auto-pass tests) ───────────
+    static void waitForUser();
 
-    // ── Block until AP or BOOT pressed, return which one ────────────────────
-    // Returns true = AP (PASS), false = BOOT (FAIL)
+    // ── Block until USER or BOOT pressed, return which one ──────────────
+    // Returns true = USER (PASS), false = BOOT (FAIL)
     static bool waitForVerdict();
 
     Display& display() { return _display; }

@@ -1,4 +1,4 @@
-﻿# NM-Display-420 出厂测试固件方案 v1.3
+# NM-Display-420 出厂测试固件方案 v1.3
 
 ## 1. 概述
 
@@ -15,7 +15,7 @@
 | H1 | E-Paper 显示屏（400×300，三色） | SPI0 | SCK=2, MOSI=1, MISO=10(NC), CS=3, DC=4, RST=5, BUSY=6 |
 | H2 | 板载 WS2812 RGB LED | RMT/单总线 | GPIO47（WS2812 数据引脚，需 RMT 或 NeoPixel 驱动）|
 | H3 | BOOT 按键 | GPIO | GPIO0（外部上拉，按下=LOW，RTC GPIO） |
-| H4 | AP 按键 | GPIO | GPIO45（外部上拉，按下=LOW） |
+| H4 | USER 按键 | GPIO | GPIO45（外部上拉，按下=LOW） |
 | H5 | AHT20 温湿度传感器 | I2C | SDA=39, SCL=38, 电源使能=GPIO40 |
 | H6 | 电池电压 ADC | ADC | A0（100kΩ+100kΩ分压）**⚠️ 当前版本板子未接，占位** |
 | H7 | WiFi | 内置 | ESP32-S3 内置 |
@@ -35,11 +35,11 @@
 
 | 按键 | 功能 |
 |------|------|
-| **AP 键（GPIO45）** | 确认 / 进入下一项 / 标记 PASS |
+| **USER 键（GPIO45）** | 确认 / 进入下一项 / 标记 PASS |
 | **BOOT 键（GPIO0）** | 标记当前项失败 |
 
-- **自动测试项**：完成后自动判断并显示 PASS/FAIL，按 **AP 键** 进入下一项。
-- **人工判断项**：屏幕显示提示，**AP 键 = PASS，BOOT 键 = FAIL**。
+- **自动测试项**：完成后自动判断并显示 PASS/FAIL，按 **USER 键** 进入下一项。
+- **人工判断项**：屏幕显示提示，**USER 键 = PASS，BOOT 键 = FAIL**。
 
 ---
 
@@ -50,15 +50,15 @@
   │
   ▼
 [T0]  系统启动 & 显示首页
-  │   Serial 初始化，EPD 初始化，显示欢迎页，等待 AP 键
+  │   Serial 初始化，EPD 初始化，显示欢迎页，等待 USER 键
   ▼
 [T1]  EPD 显示测试（白/黑/红三色全屏 + 文字渲染）
-  │   人工判断 → AP=PASS / BOOT=FAIL
+  │   人工判断 → USER=PASS / BOOT=FAIL
   ▼
 [T2]  WS2812 RGB LED 测试（依次显示红/绿/蓝/白/关）
-  │   人工判断 → AP=PASS / BOOT=FAIL
+  │   人工判断 → USER=PASS / BOOT=FAIL
   ▼
-[T3]  按键测试（依次检测 AP 键、BOOT 键被按下）
+[T3]  按键测试（依次检测 USER 键、BOOT 键被按下）
   │   自动判断，超时 10s/键 → FAIL
   ▼
 [T4]  ES8311 CODEC 测试
@@ -106,7 +106,7 @@
 │  NM-Display-420             │
 │  Factory Test FW v1.3       │
 │                             │
-│  Press AP button to Start   │
+│  Press USER button to Start   │
 └─────────────────────────────┘
 ```
 
@@ -125,7 +125,7 @@
 │       <Status / Hint>       │  <- 每行文字均水平居中
 │                             │
 │       [PASS] / [FAIL]       │  <- 结果行居中显示
-│     AP=Next  BOOT=Fail      │  <- 提示行居中显示
+│     USER=Next  BOOT=Fail      │  <- 提示行居中显示
 └─────────────────────────────┘
 ```
 
@@ -159,11 +159,11 @@
 │ ●                               │  <- bottom-left mark
 │─────────────────────────────────│
 │ 3-color OK? Text clear?         │
-│ AP=PASS   BOOT=FAIL             │
+│ USER=PASS   BOOT=FAIL             │
 └─────────────────────────────────┘
 ```
 
-**判断**：人工查看三色是否鲜明、文字是否清晰。AP=PASS / BOOT=FAIL。
+**判断**：人工查看三色是否鲜明、文字是否清晰。USER=PASS / BOOT=FAIL。
 
 > 每轮全刷约 4~15s，T1 共 4 轮约 **60~90 秒**。每轮刷新开始前串口输出当前轮次日志，方便上位机监控进度。
 
@@ -185,7 +185,7 @@
 │ R OK  G ...  B ...  W ...   │
 │─────────────────────────────│
 │ Colors change correctly?    │
-│ AP=PASS   BOOT=FAIL         │
+│ USER=PASS   BOOT=FAIL         │
 └─────────────────────────────┘
 ```
 
@@ -199,13 +199,13 @@
    - **Off**   `(0, 0, 0)`
 3. 全部完成后屏幕显示操作提示，等待按键
 
-**判断**：人工确认三色均正常点亮。AP=PASS / BOOT=FAIL。
+**判断**：人工确认三色均正常点亮。USER=PASS / BOOT=FAIL。
 
 ---
 
 ### T3 — 按键测试
 
-**目的**：验证 AP 键（GPIO45）和 BOOT 键（GPIO0）均可正常触发。
+**目的**：验证 USER 键（GPIO45）和 BOOT 键（GPIO0）均可正常触发。
 
 **屏幕布局**：
 ```
@@ -213,21 +213,21 @@
 │ T3                          │
 │ Button Test                 │
 │─────────────────────────────│
-│ Press AP button             │
+│ Press USER button             │
 │                             │
-│ AP   [ WAIT ]               │
+│ USER [ WAIT ]               │
 │ BOOT [ WAIT ]               │
 └─────────────────────────────┘
 ```
 检测到按键后对应行变为 `[ OK ]`，两键均检测到后底部显示 `[PASS]`。
 
 **步骤**：
-1. Screen shows T3 title, prompt "Press AP button", poll GPIO45, timeout 10s
-2. Detected → AP row changes to `[ OK ]`, prompt "Press BOOT key", poll GPIO0, timeout 10s
+1. Screen shows T3 title, prompt "Press USER button", poll GPIO45, timeout 10s
+2. Detected → USER row changes to `[ OK ]`, prompt "Press BOOT key", poll GPIO0, timeout 10s
 3. Detected → BOOT row changes to `[ OK ]`, auto PASS
-4. Any key timeout → row changes to `[ !! ]`, show `[FAIL]`, wait AP to continue
+4. Any key timeout → row changes to `[ !! ]`, show `[FAIL]`, wait USER to continue
 
-> T3 期间 AP 键的按下**仅用于按键检测本身**，不触发"进入下一项"逻辑。
+> T3 期间 USER 键的按下**仅用于按键检测本身**，不触发“进入下一项”逻辑。
 
 ---
 
@@ -244,7 +244,7 @@
 │ I2C probe (0x18)... OK      │
 │─────────────────────────────│
 │ Result: [PASS]              │
-│ AP=Next                     │
+│ USER=Next                   │
 └─────────────────────────────┘
 ```
 
@@ -259,7 +259,7 @@
 │ Remaining: 3s               │
 │─────────────────────────────│
 │ Can you hear 1kHz tone?     │
-│ AP=PASS   BOOT=FAIL         │
+│ USER=PASS   BOOT=FAIL         │
 └─────────────────────────────┘
 ```
 
@@ -282,7 +282,7 @@
 6. 播放完成后屏幕显示操作提示，等待按键
 7. 判断后，**拉低 GPIO41**（PA_CTRL=LOW）关断功放
 
-**判断**：T4-A 自动；T4-B 人工确认。AP=PASS / BOOT=FAIL。
+**判断**：T4-A 自动；T4-B 人工确认。USER=PASS / BOOT=FAIL。
 
 > 板上扬声器为 **4Ω 喇叭** + 外部功放（PA_CTRL=GPIO41 使能），播放前务必先拉高 PA_CTRL。
 
@@ -324,7 +324,7 @@ LMD4737 为 PDM DMIC，时钟由 ES8311 `DMIC_CLK` 驱动，数据经 `DMIC_DAT`
 │ RMS: ---                    │
 │─────────────────────────────│
 │ Result: [PASS]              │
-│ AP=Next                     │
+│ USER=Next                   │
 └─────────────────────────────┘
 ```
 
@@ -370,7 +370,7 @@ LMD4737 为 PDM DMIC，时钟由 ES8311 `DMIC_CLK` 驱动，数据经 `DMIC_DAT`
 │ Humi: -- %                  │
 │─────────────────────────────│
 │ Result: [PASS]              │
-│ AP=Next                     │
+│ USER=Next                   │
 └─────────────────────────────┘
 ```
 
@@ -378,7 +378,7 @@ LMD4737 为 PDM DMIC，时钟由 ES8311 `DMIC_CLK` 驱动，数据经 `DMIC_DAT`
 1. 拉高 GPIO40（电源使能），延时 200ms
 2. `Wire.begin(39, 38)` 初始化 I2C，启动 AHT20（最多 5 次重试，间隔 40ms）
 3. 读取温湿度，屏幕刷新显示测量值
-4. 自动判断，显示 `[PASS]` 或 `[FAIL: reason]`，等待 AP 键继续
+4. 自动判断，显示 `[PASS]` 或 `[FAIL: reason]`，等待 USER 键继续
 
 **自动判断条件**（全部满足 → PASS）：
 - `aht.begin()` 返回 true
@@ -427,14 +427,14 @@ LMD4737 为 PDM DMIC，时钟由 ES8311 `DMIC_CLK` 驱动，数据经 `DMIC_DAT`
 │ 3. SSID_C                   │
 │─────────────────────────────│
 │ Result: [PASS]              │
-│ AP=Next                     │
+│ USER=Next                   │
 └─────────────────────────────┘
 ```
 
 **步骤**：
 1. `WiFi.mode(WIFI_STA)` → `WiFi.scanNetworks()`（同步，超时 10s）
 2. 屏幕刷新显示 AP 数量及前 3 个 SSID
-3. 自动判断，等待 AP 键继续
+3. 自动判断，等待 USER 键继续
 
 **自动判断条件**：发现 AP 数量 ≥ 1 → PASS，否则 FAIL。
 
@@ -459,7 +459,7 @@ LMD4737 为 PDM DMIC，时钟由 ES8311 `DMIC_CLK` 驱动，数据经 `DMIC_DAT`
 │ Read back... OK             │
 │─────────────────────────────│
 │ Result: [PASS]              │
-│ AP=Next                     │
+│ USER=Next                   │
 └─────────────────────────────┘
 ```
 
@@ -507,7 +507,7 @@ LMD4737 为 PDM DMIC，时钟由 ES8311 `DMIC_CLK` 驱动，数据经 `DMIC_DAT`
 │ MISO: 0x2C (valid)          │
 │─────────────────────────────│
 │ Result: [PASS]              │
-│ AP=Next                     │
+│ USER=Next                   │
 └─────────────────────────────┘
 ```
 
@@ -616,7 +616,7 @@ NM-Display-420/
 #define PIN_TEMP_CTL  40   // AHT20 电源使能
 
 #define PIN_BOOT_BTN  0
-#define PIN_AP_BTN    45
+#define PIN_USER_BTN    45
 #define PIN_LED       47   // WS2812 数据引脚（RMT/NeoPixel）
 #define WS2812_COUNT  1    // 板载 WS2812 数量
 
@@ -696,7 +696,7 @@ build_flags =
 | 39 | I2C SDA（AHT20 + ES8311） | 双向 |
 | 40 | AHT20 电源使能 | 输出（HIGH=开） |
 | 41 | 功放使能（PA_CTRL） | 输出（HIGH=使能） |
-| 45 | AP 按键 | 输入（上拉） |
+| 45 | USER 按键 | 输入（上拉） |
 | 47 | WS2812 数据引脚（RGB LED） | 输出（RMT 单总线）|
 | A0 | 电池电压 ADC（未接，占位） | 模拟输入 |
 
