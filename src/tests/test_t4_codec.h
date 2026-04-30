@@ -99,6 +99,26 @@ static void _es8311_init_playback() {
     _es8311_dump_key_regs();
 }
 
+// Wake ES8311 from power-down and enter playback mode.
+static void _es8311_wakeup_playback() {
+    T4_LOG("ES8311 wakeup -> playback mode");
+    _es8311_init_playback();
+}
+
+// Enter ES8311 suspend/power-down mode.
+// Sequence aligned with Espressif ES8311 driver suspend flow.
+static void _es8311_enter_powerdown() {
+    T4_LOG("ES8311 enter power-down");
+    _es8311_write(0x32, 0x00);  // DAC volume to 0 before power-off
+    _es8311_write(0x17, 0x00);  // ADC digital volume to 0
+    _es8311_write(0x0E, 0xFF);  // Power down system blocks
+    _es8311_write(0x12, 0x02);  // Clock/path gate
+    _es8311_write(0x14, 0x00);  // Disable ADC/DMIC path
+    _es8311_write(0x0D, 0xFA);  // System power-down control
+    _es8311_write(0x15, 0x00);  // Disable DAC path
+    _es8311_write(0x45, 0x01);  // Enter low-power state
+}
+
 #define T4_SAMPLE_RATE  16000
 #define T4_BUF_SAMPLES  512
 
@@ -171,7 +191,7 @@ inline TestResult runTestT4(Display& disp, TestRunner& runner) {
     bool i2sOk = _t4_i2s_init();
     T4_LOG("i2sOk=%d, waiting 50ms", (int)i2sOk);
     delay(50);
-    if (i2sOk) _es8311_init_playback();
+    if (i2sOk) _es8311_wakeup_playback();
 
     pinMode(PIN_PA_CTRL, OUTPUT);
     digitalWrite(PIN_PA_CTRL, HIGH);
@@ -182,6 +202,7 @@ inline TestResult runTestT4(Display& disp, TestRunner& runner) {
         const char* lerr[] = { "I2S init FAILED" };
         disp.showTestScreen(4, "ES8311 CODEC-Play", lerr, 1, "FAIL", "USER=Next");
         runner.waitForUser();
+        _es8311_enter_powerdown();
         return TestResult::FAIL;
     }
 
@@ -321,6 +342,7 @@ inline TestResult runTestT4(Display& disp, TestRunner& runner) {
 
     digitalWrite(PIN_PA_CTRL, LOW);
     _t4_i2s_deinit();
+    _es8311_enter_powerdown();
     T4_LOG("END verdict=%s", verdict ? "PASS" : "FAIL");
     return verdict ? TestResult::PASS : TestResult::FAIL;
 }

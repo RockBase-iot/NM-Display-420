@@ -50,6 +50,13 @@
 // ─── WS2812 ──────────────────────────────────────────────────────────────────
 #define WS2812_COUNT  1    // Number of onboard WS2812 LEDs
 
+// ─── EPD refresh tuning ─────────────────────────────────────────────────────
+// Full-height page buffer reduces paged transfer overhead on ESP32-S3.
+// The selected GDEY042Z98 driver still does full 3-color refresh, so this
+// improves latency moderately but cannot remove the panel's inherent delay.
+#define EPD_PAGE_HEIGHT           300   // 300 = full buffer, 150 = half buffer
+#define EPD_FAST_FULL_UPDATE      1     // 1 = use fast full-refresh waveform
+
 // ─── Feature switches ─────────────────────────────────────────────────────────
 #define BATTERY_ADC_AVAILABLE  0   // 0 = SKIP (HW not populated), 1 = test
 

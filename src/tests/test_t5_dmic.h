@@ -111,6 +111,12 @@ static void _t5_es8311_init_record() {
     T5_LOG("ES8311 record init done");
 }
 
+// Wake ES8311 from power-down and enter record mode.
+static void _t5_es8311_wakeup_record() {
+    T5_LOG("ES8311 wakeup -> record mode");
+    _t5_es8311_init_record();
+}
+
 // Same playback sequence as T4 (kept local to avoid coupling to test_t4_codec.h).
 static void _t5_es8311_init_playback() {
     T5_LOG("ES8311 playback init start");
@@ -154,6 +160,26 @@ static void _t5_es8311_init_playback() {
     _t5_es8311_write(0x32, 0xBF);
     _t5_es8311_write(0x31, 0x00);
     T5_LOG("ES8311 playback init done");
+}
+
+// Wake ES8311 from power-down and enter playback mode.
+static void _t5_es8311_wakeup_playback() {
+    T5_LOG("ES8311 wakeup -> playback mode");
+    _t5_es8311_init_playback();
+}
+
+// Enter ES8311 suspend/power-down mode.
+// Sequence aligned with Espressif ES8311 driver suspend flow.
+static void _t5_es8311_enter_powerdown() {
+    T5_LOG("ES8311 enter power-down");
+    _t5_es8311_write(0x32, 0x00);  // DAC volume to 0 before power-off
+    _t5_es8311_write(0x17, 0x00);  // ADC digital volume to 0
+    _t5_es8311_write(0x0E, 0xFF);  // Power down system blocks
+    _t5_es8311_write(0x12, 0x02);  // Clock/path gate
+    _t5_es8311_write(0x14, 0x00);  // Disable ADC/DMIC path
+    _t5_es8311_write(0x0D, 0xFA);  // System power-down control
+    _t5_es8311_write(0x15, 0x00);  // Disable DAC path
+    _t5_es8311_write(0x45, 0x01);  // Enter low-power state
 }
 
 static bool _t5_i2s_init_rx() {
@@ -299,7 +325,7 @@ inline TestResult runTestT5(Display& disp, TestRunner& runner) {
         return TestResult::FAIL;
     }
     delay(50);
-    _t5_es8311_init_record();
+    _t5_es8311_wakeup_record();
     delay(100);
 
     // Discard ~50 ms of warm-up samples.
@@ -402,6 +428,7 @@ inline TestResult runTestT5(Display& disp, TestRunner& runner) {
 
     // --- Phase 2: Playback --------------------------------------------------
     if (!_t5_i2s_init_tx()) {
+        _t5_es8311_enter_powerdown();
         free(monoBuf);
         const char* lines[] = { "I2S TX init FAILED" };
         disp.showTestScreen(5, "DMIC Playback", lines, 1, "FAIL", "USER=Next");
@@ -409,7 +436,7 @@ inline TestResult runTestT5(Display& disp, TestRunner& runner) {
         return TestResult::FAIL;
     }
     delay(50);
-    _t5_es8311_init_playback();
+    _t5_es8311_wakeup_playback();
     delay(50);
 
     digitalWrite(PIN_PA_CTRL, HIGH);
@@ -457,6 +484,7 @@ inline TestResult runTestT5(Display& disp, TestRunner& runner) {
     delay(80);
     digitalWrite(PIN_PA_CTRL, LOW);
     _t5_i2s_deinit_tx();
+    _t5_es8311_enter_powerdown();
 
     // --- Verdict screen -----------------------------------------------------
     bool autoPass = (rms > DMIC_RMS_THRESHOLD_VOICE);

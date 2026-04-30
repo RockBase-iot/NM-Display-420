@@ -14,7 +14,7 @@
 // ─── EPD type alias ──────────────────────────────────────────────────────────
 using EpdDisplay = GxEPD2_3C<
     GxEPD2_420c_GDEY042Z98,
-    GxEPD2_420c_GDEY042Z98::HEIGHT / 2
+    EPD_PAGE_HEIGHT
 >;
 
 // ─── Screen layout constants ──────────────────────────────────────────────────
@@ -31,6 +31,7 @@ public:
     void init() {
         SPI.begin(PIN_EPD_SCK, PIN_EPD_MISO, PIN_EPD_MOSI, PIN_EPD_CS);
         _epd.init(115200, /*initial_power_on=*/true, /*reset_duration=*/2, /*pulldown_rst_mode=*/false);
+        _epd.epd2.selectFastFullUpdate(EPD_FAST_FULL_UPDATE != 0);
         _epd.setRotation(0);  // 400 wide × 300 tall
     }
 
@@ -41,6 +42,7 @@ public:
     // showTestScreen returns almost instantly without driving the panel.
     void resync() {
         _epd.init(115200, /*initial_power_on=*/true, /*reset_duration=*/2, /*pulldown_rst_mode=*/false);
+        _epd.epd2.selectFastFullUpdate(EPD_FAST_FULL_UPDATE != 0);
         _epd.setRotation(0);
     }
 
